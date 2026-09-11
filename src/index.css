@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 30% 98%;
+    --foreground: 20 14% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 10%;
+    --primary: 20 14% 10%;
+    --primary-foreground: 40 30% 98%;
+    --secondary: 40 20% 92%;
+    --secondary-foreground: 20 14% 10%;
+    --muted: 40 20% 92%;
+    --muted-foreground: 20 10% 40%;
+    --accent: 18 90% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 18% 88%;
+    --input: 40 18% 88%;
+    --ring: 24 60% 52%;
+    --radius: 0.75rem;
+    --font-heading: 'Tajawal', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Tajawal', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Playfair Display', 'Tajawal', 'Inter', serif;
+    --font-mono: ui-monospace, monospace;
+  }
+
+  .dark {
+    --background: 20 14% 6%;
+    --foreground: 40 30% 96%;
+    --card: 20 14% 9%;
+    --card-foreground: 40 30% 96%;
+    --popover: 20 14% 9%;
+    --popover-foreground: 40 30% 96%;
+    --primary: 40 30% 96%;
+    --primary-foreground: 20 14% 6%;
+    --secondary: 20 10% 16%;
+    --secondary-foreground: 40 30% 96%;
+    --muted: 20 10% 16%;
+    --muted-foreground: 40 10% 65%;
+    --accent: 18 90% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 20 10% 18%;
+    --input: 20 10% 18%;
+    --ring: 24 70% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  button, [role="button"] {
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  /* ضروري على iOS WKWebView — بدونها لوحة المفاتيح تظهر لكن النص لا يُكتب */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .bg-brand-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(20 20% 14%) 100%);
+  }
+  .bg-accent-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(32 95% 50%) 100%);
+  }
+  .shadow-glow {
+    box-shadow: 0 10px 34px -10px hsl(var(--accent) / 0.55);
+  }
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:active {
+    transform: scale(0.98);
+  }
+}

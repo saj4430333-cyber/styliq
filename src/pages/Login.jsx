@@ -1,0 +1,182 @@
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import AuthLayout from "@/components/AuthLayout";
+import GoogleIcon from "@/components/GoogleIcon";
+import AppleIcon from "@/components/AppleIcon";
+import { useAuth } from "@/lib/AuthContext";
+import { safeReturnTo } from "@/lib/authReturnTo";
+import { isNativeAuthAvailable, loginWithProviderNative, AuthCancelledError } from "@/lib/nativeAuth";
+
+export default function Login() {
+  const navigate = useNavigate();
+  const { checkUserAuth, completeNativeLogin } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  // Post-login destination (e.g. the MCP OAuth consent page sends users here
+  // with returnTo so the grant flow can resume). Same-origin paths only.
+  const returnTo = safeReturnTo();
+  const pendingCreate = (returnTo || '').includes('create=1');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await base44.auth.loginViaEmailPassword(email, password);
+      await checkUserAuth();
+      navigate(returnTo || '/', { replace: true });
+    } catch (err) {
+      setError(err.message || "Invalid email or password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // على iOS نفتح Safari ونعود برابط عميق؛ مزوّدو OAuth يحظرون الـ WebView.
+  const handleProvider = async (provider) => {
+    setError("");
+    if (isNativeAuthAvailable()) {
+      setLoading(true);
+      try {
+        const token = await loginWithProviderNative(provider);
+        await completeNativeLogin(token);
+        navigate(returnTo || "/", { replace: true });
+      } catch (err) {
+        if (err instanceof AuthCancelledError || err?.cancelled) return;
+        setError(err?.message || "Could not start sign-in");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    base44.auth.loginWithProvider(provider, returnTo);
+  };
+
+  const handleGoogle = () => handleProvider("google");
+  const handleApple = () => handleProvider("apple");
+
+  return (
+    <AuthLayout
+      icon={LogIn}
+      title={pendingCreate ? "Sign in to create your look" : "Welcome back"}
+      subtitle={pendingCreate ? "Your details are saved — sign in to generate outfits" : "Log in to your account"}
+      footer={
+        <>
+          Don't have an account?{" "}
+          <Link
+            to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
+            className="text-primary font-medium hover:underline"
+          >
+            Create one
+          </Link>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => navigate(pendingCreate ? "/styling" : "/", { replace: true })}
+              className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              Continue as guest
+            </button>
+          </div>
+        </>
+      }
+    >
+      {pendingCreate && (
+        <div className="mb-4 p-3 rounded-xl bg-accent/10 border border-accent/20 text-sm text-foreground">
+          بياناتك محفوظة. سجّل الدخول لإنشاء الإطلالات والصور.
+        </div>
+      )}
+      <Button
+        variant="outline"
+        className="w-full h-12 text-sm font-medium mb-3"
+        onClick={handleApple}
+        disabled={loading}
+      >
+        <AppleIcon className="w-5 h-5 mr-2" />
+        Continue with Apple
+      </Button>
+      <Button
+        variant="outline"
+        className="w-full h-12 text-sm font-medium mb-6"
+        onClick={handleGoogle}
+        disabled={loading}
+      >
+        <GoogleIcon className="w-5 h-5 mr-2" />
+        Continue with Google
+      </Button>
+
+      <div className="relative mb-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-3 text-muted-foreground">or</span>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              autoFocus
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-10 h-12"
+              required
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="pl-10 h-12"
+              required
+            />
+          </div>
+        </div>
+        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Logging in...
+            </>
+          ) : (
+            "Log in"
+          )}
+        </Button>
+      </form>
+    </AuthLayout>
+  );
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StyliQ</string>
+    <string name="title_activity_main">StyliQ</string>
+    <string name="package_name">com.base6a80314d63be247cee56fa4f.app</string>
+    <string name="custom_url_scheme">com.base6a80314d63be247cee56fa4f.app</string>
+</resources>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>StyliQ — مصمّمك الشخصي للأزياء بالذكاء الاصطناعي</title>
+    <meta name="description" content="StyliQ — احصل على ثلاث تنسيقات ملابس مخصصة بناءً على مقاساتك وموسمك ومناسبتك، مولّدة بالذكاء الاصطناعي في ثوانٍ." />
+    <meta name="theme-color" content="#f5f0e8" />
+    <script>
+      (function(){try{var l=localStorage.getItem('styliq_lang')||'ar';document.documentElement.lang=l;document.documentElement.dir=l==='en'?'ltr':'rtl';}catch(e){}})();
+    </script>
+    <meta property="og:title" content="StyliQ — مصمّمك الشخصي للأزياء" />
+    <meta property="og:description" content="ثلاث تنسيقات مخصصة مولّدة بالذكاء الاصطناعي تناسب جسمك ومناسبتك." />
+    <meta property="og:type" content="website" />
+    <!-- Google Analytics (GA4): استبدل G-XXXXXXXXXX بمعرّف القياس الخاص بك -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX', { anonymize_ip: true });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
