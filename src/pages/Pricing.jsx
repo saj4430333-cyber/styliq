@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Sparkles, Loader2, Check, RotateCcw,
@@ -15,7 +15,6 @@ import {
   fetchState, restorePurchases, waitForCredits,
   RC_PRODUCT_ID, CREDITS_PER_PACK,
 } from '@/lib/revenuecat';
-import { isPaymentsEnabled } from '@/lib/features';
 
 export default function Pricing() {
   const navigate = useNavigate();
@@ -23,11 +22,6 @@ export default function Pricing() {
   const { dir } = useI18n();
   const { toast } = useToast();
   const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft;
-
-  // النسخة المجانية: صفحة الاشتراك مخفية والكود محفوظ للإصدار القادم.
-  if (!isPaymentsEnabled()) {
-    return <Navigate to="/" replace />;
-  }
 
   const [state, setState] = useState({
     loading: true,

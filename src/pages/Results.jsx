@@ -9,8 +9,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
 import { useI18n } from '@/lib/i18n-store';
 import { styleDisplayName, occasionDisplayName, seasonDisplayName, genderDisplayName } from '@/lib/translate';
-import { isPaymentsEnabled } from '@/lib/features';
-import { buildFreeOutfits, orderSummaryFrom, buildModelImagePrompt, buildFlatImagePrompt, fallbackOutfitImage } from '@/lib/freeOutfits';
 
 const LOADING_STEPS_ICONS = [Wand2, ShoppingBag, Sparkles];
 
@@ -31,78 +29,6 @@ export default function Results() {
   const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft;
   const actionRef = useRef(null);
 
-  const persistOutfits = async (orderId, outfits) => {
-    try {
-      await base44.entities.StylingOrder.update(orderId, {
-        outfits,
-        payment_status: 'paid',
-        credit_spent: true,
-      });
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const enrichWithImages = async (outfits, order, onUpdate) => {
-    const next = outfits.map((o) => ({ ...o }));
-    const withTimeout = (p, ms) =>
-      Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
-
-    await Promise.all(
-      next.map(async (outfit, i) => {
-        if (outfit.image_url) return;
-        try {
-          const res = await withTimeout(
-            base44.integrations.Core.GenerateImage({ prompt: buildModelImagePrompt(outfit, order) }),
-            70000,
-          );
-          const url = res?.url;
-          if (url) {
-            next[i] = { ...next[i], image_url: url };
-            onUpdate(next.map((o) => ({ ...o })));
-          }
-        } catch {
-          /* fall through */
-        }
-        if (!next[i].image_url) {
-          next[i] = { ...next[i], image_url: fallbackOutfitImage(order, i) };
-          onUpdate(next.map((o) => ({ ...o })));
-        }
-
-        if (!next[i].flat_image_url) {
-          try {
-            const res = await withTimeout(
-              base44.integrations.Core.GenerateImage({ prompt: buildFlatImagePrompt(outfit, order) }),
-              40000,
-            );
-            const url = res?.url;
-            if (url) {
-              next[i] = { ...next[i], flat_image_url: url };
-              onUpdate(next.map((o) => ({ ...o })));
-            }
-          } catch {
-            /* optional */
-          }
-        }
-      }),
-    );
-
-    return next;
-  };
-
-  const finishWithOutfits = async (orderId, outfits, order) => {
-    const summary = orderSummaryFrom(order) || order;
-    // انتظر صورة الـ AI أولاً — لا تعرض صورة Unsplash العشوائية فوراً (تبان زي الزفت)
-    setState({ loading: true, outfits: [], order: summary, error: '', code: '' });
-    await persistOutfits(orderId, outfits);
-
-    const enriched = await enrichWithImages(outfits, order || {}, () => {});
-    await persistOutfits(orderId, enriched);
-    setState({ loading: false, outfits: enriched, order: summary, error: '', code: '' });
-    setSelected(0);
-    base44.analytics.track({ eventName: 'outfits_generated', properties: { order_id: orderId, free: true } });
-  };
-
   const runGenerate = () => {
     const orderId = searchParams.get('order_id');
     const sessionId = searchParams.get('session_id');
@@ -110,60 +36,8 @@ export default function Results() {
     setState((p) => ({ ...p, loading: true, error: '', code: '' }));
     setStepIdx(0);
     (async () => {
-      if (!isPaymentsEnabled()) {
-        try {
-          let order = null;
-          try {
-            order = await base44.entities.StylingOrder.get(orderId);
-          } catch {
-            try {
-              const list = await base44.entities.StylingOrder.filter({ id: orderId });
-              order = Array.isArray(list) ? list[0] : list?.data?.[0];
-            } catch {
-              order = null;
-            }
-          }
-
-          // إطلالة محفوظة بصورة AI حقيقية (مش Unsplash)
-          const existing = order?.outfits || [];
-          const hasRealAiImage = existing.length >= 1 && existing.every((o) => {
-            const url = o?.image_url || '';
-            return url && !url.includes('images.unsplash.com');
-          });
-          if (hasRealAiImage) {
-            setState({
-              loading: false,
-              outfits: existing,
-              order: orderSummaryFrom(order),
-              error: '',
-              code: '',
-            });
-            setSelected(0);
-            return;
-          }
-
-          // إطلالة متناسقة محلياً + صورة AI بجودة أعلى (أفضل من قوالب LLM العشوائية)
-          const outfits = buildFreeOutfits(order || { id: orderId }, lang);
-          await finishWithOutfits(orderId, outfits, order || { id: orderId });
-          return;
-        } catch (e) {
-          setState({
-            loading: false,
-            outfits: [],
-            order: null,
-            error: e?.message || t.res_err_d,
-            code: 'generation_failed',
-          });
-          return;
-        }
-      }
-
       try {
-        const res = await base44.functions.invoke('generate-outfits', {
-          order_id: orderId,
-          session_id: sessionId,
-          lang,
-        });
+        const res = await base44.functions.invoke('generate-outfits', { order_id: orderId, session_id: sessionId, lang });
         const data = res.data || {};
         const outfits = data.outfits || [];
         if (!outfits.length) {
@@ -175,8 +49,7 @@ export default function Results() {
       } catch (e) {
         const status = e?.response?.status || e?.status;
         const code = e?.response?.data?.code || (status === 402 ? 'payment_required' : 'generation_failed');
-        const error = e?.response?.data?.error || e.message;
-        setState({ loading: false, outfits: [], order: null, error, code });
+        setState({ loading: false, outfits: [], order: null, error: e?.response?.data?.error || e.message, code });
       }
     })();
   };

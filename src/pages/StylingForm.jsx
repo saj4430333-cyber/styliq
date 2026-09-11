@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,9 @@ import { STYLES, HIJABI_STYLE } from '@/lib/styles';
 import { useI18n } from '@/lib/i18n-store';
 import { styleDisplayName, skinToneDisplayName } from '@/lib/translate';
 import CreditPurchase from '@/components/CreditPurchase';
-import { isPaymentsEnabled } from '@/lib/features';
-import { useAuth } from '@/lib/AuthContext';
-import { savePendingForm, getPendingForm, clearPendingForm } from '@/lib/pendingForm';
-import { sanitizeDigits } from '@/lib/digits';
 
 const seasons = ['ربيع', 'صيف', 'خريف', 'شتاء'];
+
 const occasions = ['يومي', 'عمل', 'مناسبة اجتماعية', 'موعد', 'سفر'];
 const genders = ['ذكر', 'أنثى'];
 const skinTones = ['أبيض', 'فاتح', 'حنطي', 'أسمر', 'غامق'];
@@ -44,8 +41,6 @@ function Pill({ label, selected, onClick }) {
 export default function StylingForm() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { isAuthenticated, authChecked } = useAuth();
   const { t, lang } = useI18n();
   const STEPS = [t.sf_step1, t.sf_step2, t.sf_step3, t.sf_step4];
   const [form, setForm] = useState({ height: '', weight: '', skin_tone: '', gender: '', season: '', style: '', occasion: '' });
@@ -54,7 +49,6 @@ export default function StylingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const resumeTried = useRef(false);
 
   useEffect(() => {
     const prefill = location.state?.prefill;
@@ -151,13 +145,6 @@ export default function StylingForm() {
     if (!form.occasion) errs.occasion = t.sf_e_occ;
     if (Object.keys(errs).length) { setErrors(errs); setStep(0); return; }
 
-    // زائر: احفظ البيانات واطلب الحساب قبل إنشاء الصورة/الطلب
-    if (!isAuthenticated) {
-      savePendingForm(form);
-      navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
-      return;
-    }
-
     setSubmitting(true);
     setCheckoutError('');
 
@@ -175,111 +162,29 @@ export default function StylingForm() {
     runCreateOrder();
   };
 
-  // بعد تسجيل الدخول: أكمل إنشاء التصميم من البيانات المحفوظة
-  useEffect(() => {
-    if (!authChecked || !isAuthenticated || resumeTried.current) return;
-    if (searchParams.get('create') !== '1') return;
-    resumeTried.current = true;
-    const pending = getPendingForm();
-    if (pending) {
-      const nextForm = {
-        height: pending.height != null ? String(pending.height) : '',
-        weight: pending.weight != null ? String(pending.weight) : '',
-        skin_tone: pending.skin_tone || '',
-        gender: pending.gender || '',
-        season: pending.season || '',
-        style: pending.style || '',
-        occasion: pending.occasion || '',
-      };
-      setForm(nextForm);
-      setStep(STEPS.length - 1);
-      clearPendingForm();
-      setSearchParams({}, { replace: true });
-      setSubmitting(true);
-      setTimeout(() => {
-        runCreateOrderWithForm(nextForm);
-      }, 50);
-    } else {
-      setSearchParams({}, { replace: true });
-    }
-  }, [authChecked, isAuthenticated, searchParams]);
-
-  const runCreateOrderWithForm = async (formData) => {
+  const runCreateOrder = async () => {
     setSubmitting(true);
     setCheckoutError('');
     try {
-      const payload = {
-        ...formData,
-        height: Number(formData.height),
-        weight: Number(formData.weight),
-        skin_tone: formData.skin_tone || null,
-      };
-
-      let orderId = null;
-
-      if (!isPaymentsEnabled()) {
-        try {
-          await base44.auth.updateMe({
-            height: payload.height,
-            weight: payload.weight,
-            gender: payload.gender,
-            skin_tone: payload.skin_tone,
-            default_season: payload.season,
-            default_style: payload.style,
-          });
-        } catch {
-          /* ignore */
-        }
-
-        try {
-          const res = await base44.functions.invoke('create-order', { form: payload });
-          orderId = res.data?.order_id ?? res?.order_id;
-        } catch {
-          /* مسار احتياطي */
-        }
-
-        if (!orderId) {
-          const order = await base44.entities.StylingOrder.create({
-            gender: payload.gender,
-            season: payload.season,
-            style: payload.style,
-            occasion: payload.occasion,
-            height: payload.height,
-            weight: payload.weight,
-            skin_tone: payload.skin_tone,
-            payment_status: 'paid',
-            credit_spent: true,
-          });
-          orderId = order?.id ?? order?.data?.id;
-        }
-      } else {
-        const res = await base44.functions.invoke('create-order', { form: payload });
-        orderId = res.data?.order_id ?? res?.order_id;
-      }
-
-      if (!orderId) throw new Error(t.sf_e_create);
+      const res = await base44.functions.invoke('create-order', { form });
+      const orderId = res.data?.order_id;
+      if (!orderId) throw new Error(res.data?.error || 'تعذّر إنشاء الطلب');
       navigate('/results?order_id=' + orderId);
     } catch (err) {
       const status = err?.response?.status || err?.status;
       const code = err?.response?.data?.code;
-      const errMsg = err?.response?.data?.error || err.message || t.sf_e_create;
       if (status === 401 || code === 'auth_required') {
-        savePendingForm(formData);
-        navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
+        base44.auth.redirectToLogin(window.location.href);
         return;
       }
-      if ((status === 402 || code === 'no_credits') && isPaymentsEnabled()) {
+      if (status === 402 || code === 'no_credits') {
         setSubmitting(false);
         setPaywallOpen(true);
         return;
       }
-      setCheckoutError(errMsg);
+      setCheckoutError(err?.response?.data?.error || err.message || t.sf_e_create);
       setSubmitting(false);
     }
-  };
-
-  const runCreateOrder = async () => {
-    await runCreateOrderWithForm(form);
   };
 
   const onPurchaseSuccess = () => {
@@ -312,8 +217,14 @@ export default function StylingForm() {
       </div>
 
       <div className="py-6">
-        {/* بدون Framer Motion حول الحقول — على iOS يمنع التركيز/الكتابة */}
-        <div key={step}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25 }}
+          >
             {step === 0 && (
               <div className="space-y-7">
                 <div>
@@ -339,41 +250,13 @@ export default function StylingForm() {
                 </div>
                 <div ref={bodyRef} className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium" htmlFor="sf-height">{t.height}</Label>
-                    <Input
-                      id="sf-height"
-                      type="text"
-                      inputMode="numeric"
-                      enterKeyHint="next"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      dir="ltr"
-                      value={form.height}
-                      onChange={(e) => set('height', sanitizeDigits(e.target.value))}
-                      placeholder="175"
-                      className="h-14 rounded-2xl text-base"
-                    />
+                    <Label className="text-sm font-medium">{t.height}</Label>
+                    <Input type="number" inputMode="numeric" value={form.height} onChange={(e) => set('height', e.target.value)} placeholder="175" className="h-14 rounded-2xl text-base" />
                     {errors.height && <p className="text-destructive text-sm">{errors.height}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium" htmlFor="sf-weight">{t.weight}</Label>
-                    <Input
-                      id="sf-weight"
-                      type="text"
-                      inputMode="numeric"
-                      enterKeyHint="done"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      dir="ltr"
-                      value={form.weight}
-                      onChange={(e) => set('weight', sanitizeDigits(e.target.value))}
-                      placeholder="70"
-                      className="h-14 rounded-2xl text-base"
-                    />
+                    <Label className="text-sm font-medium">{t.weight}</Label>
+                    <Input type="number" inputMode="numeric" value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="70" className="h-14 rounded-2xl text-base" />
                     {errors.weight && <p className="text-destructive text-sm">{errors.weight}</p>}
                   </div>
                 </div>
@@ -457,7 +340,8 @@ export default function StylingForm() {
                 )}
               </div>
             )}
-        </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Footer action */}
@@ -482,13 +366,11 @@ export default function StylingForm() {
         </Button>
       )}
 
-      {isPaymentsEnabled() && (
-        <CreditPurchase
-          open={paywallOpen}
-          onClose={() => setPaywallOpen(false)}
-          onSuccess={onPurchaseSuccess}
-        />
-      )}
+      <CreditPurchase
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onSuccess={onPurchaseSuccess}
+      />
     </div>
   );
 }

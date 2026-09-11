@@ -20,7 +20,6 @@ import { base44 } from '@/api/base44Client';
 import { useI18n } from '@/lib/i18n-store';
 import { LANGUAGES } from '@/lib/i18n';
 import { styleDisplayName, occasionDisplayName } from '@/lib/translate';
-import { sanitizeDigits } from '@/lib/digits';
 
 const seasons = ['ربيع', 'صيف', 'خريف', 'شتاء'];
 const styles = ['كاجوال', 'رسمي', 'رياضي', 'بوهيمي', 'كلاسيكي', 'عصري', 'هيب هوب', 'ستريت', 'مينيمال', 'فاخر', 'فينتاج', 'روك'];
@@ -180,33 +179,11 @@ export default function Account() {
             <div className="grid grid-cols-2 gap-4 mb-5">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{t.height}</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  dir="ltr"
-                  value={profile.height}
-                  onChange={(e) => set('height', sanitizeDigits(e.target.value))}
-                  placeholder={dir === 'rtl' ? '١٧٥' : '175'}
-                  className="h-12 rounded-2xl"
-                />
+                <Input type="number" inputMode="numeric" value={profile.height} onChange={(e) => set('height', e.target.value)} placeholder={dir === 'rtl' ? '١٧٥' : '175'} className="h-12 rounded-2xl" />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{t.weight}</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  dir="ltr"
-                  value={profile.weight}
-                  onChange={(e) => set('weight', sanitizeDigits(e.target.value))}
-                  placeholder={dir === 'rtl' ? '٧٠' : '70'}
-                  className="h-12 rounded-2xl"
-                />
+                <Input type="number" inputMode="numeric" value={profile.weight} onChange={(e) => set('weight', e.target.value)} placeholder={dir === 'rtl' ? '٧٠' : '70'} className="h-12 rounded-2xl" />
               </div>
             </div>
 

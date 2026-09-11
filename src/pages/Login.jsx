@@ -22,7 +22,6 @@ export default function Login() {
   // Post-login destination (e.g. the MCP OAuth consent page sends users here
   // with returnTo so the grant flow can resume). Same-origin paths only.
   const returnTo = safeReturnTo();
-  const pendingCreate = (returnTo || '').includes('create=1');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -65,8 +64,8 @@ export default function Login() {
   return (
     <AuthLayout
       icon={LogIn}
-      title={pendingCreate ? "Sign in to create your look" : "Welcome back"}
-      subtitle={pendingCreate ? "Your details are saved — sign in to generate outfits" : "Log in to your account"}
+      title="Welcome back"
+      subtitle="Log in to your account"
       footer={
         <>
           Don't have an account?{" "}
@@ -76,23 +75,9 @@ export default function Login() {
           >
             Create one
           </Link>
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => navigate(pendingCreate ? "/styling" : "/", { replace: true })}
-              className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-            >
-              Continue as guest
-            </button>
-          </div>
         </>
       }
     >
-      {pendingCreate && (
-        <div className="mb-4 p-3 rounded-xl bg-accent/10 border border-accent/20 text-sm text-foreground">
-          بياناتك محفوظة. سجّل الدخول لإنشاء الإطلالات والصور.
-        </div>
-      )}
       <Button
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-3"

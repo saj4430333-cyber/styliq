@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, Sparkles, Loader2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +13,6 @@ import { base44 } from '@/api/base44Client';
 import { STYLES, HIJABI_STYLE } from '@/lib/styles';
 import { styleDisplayName } from '@/lib/translate';
 import CreditPurchase from '@/components/CreditPurchase';
-import { isPaymentsEnabled } from '@/lib/features';
-import { savePendingForm } from '@/lib/pendingForm';
-import { sanitizeDigits } from '@/lib/digits';
 
 const SEASON_VALUES = ['ربيع', 'صيف', 'خريف', 'شتاء'];
 const OCCASION_VALUES = ['يومي', 'عمل', 'مناسبة اجتماعية', 'موعد', 'سفر'];
@@ -70,9 +68,9 @@ export default function Onboarding() {
     try {
       const authed = await base44.auth.isAuthenticated();
       if (authed) setStep(1);
-      else navigate('/', { replace: true }); // زائر: يدخل التطبيق بدون تسجيل فوراً
+      else navigate('/register?returnTo=/');
     } catch (e) {
-      navigate('/', { replace: true });
+      navigate('/register?returnTo=/');
     }
   };
 
@@ -92,50 +90,26 @@ export default function Onboarding() {
     if (Object.keys(e).length) { setErrors(e); return; }
     setOnboardingPrefs(form);
     setOnboarded();
-    // قبل التوليد: اطلب الحساب إن لم يكن مسجّلاً
-    const authed = await base44.auth.isAuthenticated().catch(() => false);
-    if (!authed) {
-      savePendingForm(form);
-      navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
-      return;
-    }
     runCreateOrder();
   };
 
   const runCreateOrder = async () => {
     setCreating(true);
     try {
-      const payload = {
-        ...form,
-        height: Number(form.height),
-        weight: Number(form.weight),
-      };
-      try {
-        await base44.auth.updateMe({
-          height: payload.height,
-          weight: payload.weight,
-          gender: payload.gender,
-          default_season: payload.season,
-          default_style: payload.style,
-        });
-      } catch {
-        /* إنشاء الطلب أهم */
-      }
-      const res = await base44.functions.invoke('create-order', { form: payload });
-      const orderId = res.data?.order_id ?? res?.order_id;
-      if (!orderId) throw new Error(res.data?.error || res?.error || 'error');
+      const res = await base44.functions.invoke('create-order', { form });
+      const orderId = res.data?.order_id;
+      if (!orderId) throw new Error(res.data?.error || 'error');
       navigate('/results?order_id=' + orderId);
     } catch (err) {
       const status = err?.response?.status || err?.status;
       const code = err?.response?.data?.code;
       setCreating(false);
-      if ((status === 402 || code === 'no_credits') && isPaymentsEnabled()) {
+      if (status === 402 || code === 'no_credits') {
         setPaywallOpen(true);
         return;
       }
       if (status === 401 || code === 'auth_required') {
-        savePendingForm(form);
-        navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
+        base44.auth.redirectToLogin(window.location.href);
         return;
       }
       setErrors((p) => ({ ...p, submit: err?.response?.data?.error || err.message || 'error' }));
@@ -168,7 +142,15 @@ export default function Onboarding() {
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div key={step} className="flex-1 flex flex-col">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: isRTL ? 20 : -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: isRTL ? -20 : 20 }}
+              transition={{ duration: 0.25 }}
+              className="flex-1 flex flex-col"
+            >
               {/* Step 0: Language selection */}
               {step === 0 && (
                 <div className="flex-1 flex flex-col justify-center">
@@ -230,37 +212,13 @@ export default function Onboarding() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium" htmlFor="ob-height">{s.height}</Label>
-                        <Input
-                          id="ob-height"
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          dir="ltr"
-                          value={form.height}
-                          onChange={(e) => set('height', sanitizeDigits(e.target.value))}
-                          placeholder="175"
-                          className="h-14 rounded-2xl text-base"
-                        />
+                        <Label className="text-sm font-medium">{s.height}</Label>
+                        <Input type="number" inputMode="numeric" value={form.height} onChange={(e) => set('height', e.target.value)} placeholder="175" className="h-14 rounded-2xl text-base" />
                         {errors.height && <p className="text-destructive text-sm">{errors.height}</p>}
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium" htmlFor="ob-weight">{s.weight}</Label>
-                        <Input
-                          id="ob-weight"
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          dir="ltr"
-                          value={form.weight}
-                          onChange={(e) => set('weight', sanitizeDigits(e.target.value))}
-                          placeholder="70"
-                          className="h-14 rounded-2xl text-base"
-                        />
+                        <Label className="text-sm font-medium">{s.weight}</Label>
+                        <Input type="number" inputMode="numeric" value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="70" className="h-14 rounded-2xl text-base" />
                         {errors.weight && <p className="text-destructive text-sm">{errors.weight}</p>}
                       </div>
                     </div>
@@ -291,7 +249,8 @@ export default function Onboarding() {
                   </div>
                 </div>
               )}
-          </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Footer */}
@@ -317,13 +276,11 @@ export default function Onboarding() {
           </div>
         )}
       </div>
-      {isPaymentsEnabled() && (
-        <CreditPurchase
-          open={paywallOpen}
-          onClose={() => setPaywallOpen(false)}
-          onSuccess={onPurchaseSuccess}
-        />
-      )}
+      <CreditPurchase
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        onSuccess={onPurchaseSuccess}
+      />
     </div>
   );
 }

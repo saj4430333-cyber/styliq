@@ -11,7 +11,6 @@ import { base44 } from '@/api/base44Client';
 import { isOnboarded, getOnboardingPrefs, clearOnboardingPrefs } from '@/lib/language';
 import { useI18n } from '@/lib/i18n-store';
 import { styleDisplayName, occasionDisplayName } from '@/lib/translate';
-import { isPaymentsEnabled } from '@/lib/features';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -83,15 +82,13 @@ export default function Home() {
           <h1 className="font-display text-2xl font-bold">{name}</h1>
         </div>
         <div className="flex items-center gap-2">
-          {isPaymentsEnabled() && (
-            <button
-              onClick={() => navigate('/pricing')}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold active:scale-95"
-            >
-              <Sparkles className="w-4 h-4" />
-              كريديت: {user?.credits ?? 0}
-            </button>
-          )}
+          <button
+            onClick={() => navigate('/pricing')}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold active:scale-95"
+          >
+            <Sparkles className="w-4 h-4" />
+            كريديت: {user?.credits ?? 0}
+          </button>
           <Logo />
         </div>
       </div>
@@ -168,7 +165,7 @@ export default function Home() {
           {t.home_how}
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          {isPaymentsEnabled() ? t.home_how_desc : t.home_how_desc_free}
+          {t.home_how_desc}
         </p>
       </div>
     </PullToRefresh>

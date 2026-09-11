@@ -97,10 +97,10 @@ function hijabiBlock(order) {
 }
 
 // وضع الكتالوج: اختيار صارم من منتجات حقيقية موجودة
-function buildCatalogPrompt(order, catalog, lang, count = 5) {
+function buildCatalogPrompt(order, catalog, lang) {
   const body = bodyDescriptor(order);
   const guidance = styleGuidance(order.style);
-  return `أنت مصمّم أزياء محترف يعمل بالذكاء الاصطناعي. لديك كتالوج منتجات حقيقية فقط. مهمتك اختيار منتجات حقيقية موجودة في الكتالوج حصراً وتكوين ${count} تنسيق(ات) ملابس متنوّعة تناسب المستخدم بدقة.
+  return `أنت مصمّم أزياء محترف يعمل بالذكاء الاصطناعي. لديك كتالوج منتجات حقيقية فقط. مهمتك اختيار منتجات حقيقية موجودة في الكتالوج حصراً وتكوين 5 تنسيقات ملابس متنوّعة تناسب المستخدم بدقة.
 
 ${USER_BLOCK(order, body)}
 
@@ -110,25 +110,25 @@ ${guidance}${hijabiBlock(order)}
 ${JSON.stringify(catalog)}
 
 قواعد صارمة:
-- يجب أن تُنتج بالضبط ${count} تنسيق(ات) مختلفة في مصفوفة outfits. أقل من ${count} غير مقبول إطلاقاً.
+- يجب أن تُنتج بالضبط 5 تنسيقات مختلفة في مصفوفة outfits. أقل من 5 غير مقبول إطلاقاً.
 - اختر المنتجات حصراً من قائمة id الموجودة في الكتالوج أعلاه (انسخ قيمة id كما هي تماماً). لا تختَرع أي id أو منتج أو ماركة أو سعر أو رابط غير موجود في الكتالوج.
 - التزم بالستايل المطلوب («${order.style}») قدر الإمكان. ابحث أولاً عن منتجات يطابق حقل style فيها الستايل المطلوب تماماً، واستخدمها. إن لم تكن كافية، اختر الأقرب روحاً للستايل.
 - المنتجات مرتّبة بحقل _match (الأعلى = الأكثر مطابقة)؛ فضّل الأعلى.
 - كل تنسيق يجب أن يحتوي إلزامياً على: top + bottom + shoes، وaccessory اختياري.
 - اختر منتجات تطابق جنس المستخدم (gender) أو unisex.
-- راعِ الموسم (season) والمناسبة (occasion) والقوام (${body}) والطول ${order.height} سم والوزن ${order.weight} كجم ولون البشرة ${order.skin_tone || 'غير محدد'}.
-- اجعل التنسيقات متنوّعة في الألوان والأشكال والقَصّات — لا تكرر نفس الإطلالة لكل المستخدمين.
+- راعِ الموسم (season) والمناسبة (occasion) والقوام (${body}).
+- اجعل التنسيقات الخمسة متنوّعة في الألوان والأشكال والقَصّات.
 - لا تكرر نفس المنتج (id) داخل التنسيق الواحد.
-- title: اسم جذّاب قصير. description: وصف سطر واحد. reason: شرح مفصّل لماذا يناسب المستخدم (الستايل/القوام/الموسم/المناسبة/الطول/الوزن).
+- title: اسم جذّاب قصير. description: وصف سطر واحد. reason: شرح مفصّل لماذا يناسب المستخدم (الستايل/القوام/الموسم/المناسبة).
 - ${LANG_INSTRUCTION[lang] || LANG_INSTRUCTION.en}
   أرجع JSON بالبنية المطلوبة فقط.`;
 }
 
 // الوضع الإبداعي: توليد اقتراحات أنيقة مع ماركات عالمية بدون الاعتماد على كتالوج
-function buildCreativePrompt(order, lang, count = 5) {
+function buildCreativePrompt(order, lang) {
   const body = bodyDescriptor(order);
   const guidance = styleGuidance(order.style);
-  return `أنت مصمّم أزياء محترف يعمل بالذكاء الاصطناعي. مهمتك اقتراح ${count} تنسيق(ات) ملابس أنيقة جداً ومتنوّعة تناسب المستخدم بدقة، مع اقتراح أفضل الماركات العالمية لكل قطعة (ماركات حقيقية متاحة عالمياً مثل Zara, H&M, Mango, Massimo Dutti, COS, Uniqlo, Levi's, Calvin Klein, Tommy Hilfiger, Ralph Lauren, Nike, Adidas, Puma, New Balance, Asics, Gucci, Balenciaga, Burberry, North Face, Carhartt, Diesel, Replay, G-Star, Pull&Bear, Stradivarius, Bershka, Asos, Nordstrom...).
+  return `أنت مصمّم أزياء محترف يعمل بالذكاء الاصطناعي. مهمتك اقتراح 5 تنسيقات ملابس أنيقة جداً ومتنوّعة تناسب المستخدم بدقة، مع اقتراح أفضل الماركات العالمية لكل قطعة (ماركات حقيقية متاحة عالمياً مثل Zara, H&M, Mango, Massimo Dutti, COS, Uniqlo, Levi's, Calvin Klein, Tommy Hilfiger, Ralph Lauren, Nike, Adidas, Puma, New Balance, Asics, Gucci, Balenciaga, Burberry, North Face, Carhartt, Diesel, Replay, G-Star, Pull&Bear, Stradivarius, Bershka, Asos, Nordstrom...).
 
 ${USER_BLOCK(order, body)}
 
@@ -142,15 +142,14 @@ ${guidance}${hijabiBlock(order)}${order.gender === 'ذكر' ? `
 - اجعل الإطلالات تبدو وكأنها من مجلة موضة رجالية راقية (GQ/Esquire) لا عشوائية.
 ` : ''}
 قواعد صارمة:
-- يجب أن تُنتج بالضبط ${count} تنسيق(ات) مختلفة في مصفوفة outfits. أقل من ${count} غير مقبول إطلاقاً.
+- يجب أن تُنتج بالضبط 5 تنسيقات مختلفة في مصفوفة outfits. أقل من 5 غير مقبول إطلاقاً.
 - كل تنسيق يجب أن يحتوي إلزامياً على: top + bottom + shoes، وaccessory اختياري (للمحجبة: accessory = وشاح رأس إلزامي).
 - لكل قطعة اقترح: role, brand (ماركة عالمية حقيقية مناسبة للستايل والفئة), product_name (وصف دقيق للقطعة مثل «قميص قطني أبيض بياقة كلاسيكية»), category, color (لون محدد بنفس لغة المخرجات مثل «أبيض»/«كحلي»).
-- التزم بالستايل («${order.style}») بدقة، وراعِ الموسم والمناسبة والقوام (${body}) والطول ${order.height} سم والوزن ${order.weight} كجم ولون البشرة ${order.skin_tone || 'غير محدد'}.
-- غيّر القَصّات والألوان حسب الطول والوزن — لا تعطِ نفس القطع لكل المستخدمين حتى لو تشابه الستايل.
-- اجعل التنسيقات متنوّعة تماماً في الألوان والأشكال والقَصّات — لا تكرّر نفس الألوان أو القطع.
-- title: اسم جذّاب قصير. description: وصف سطر واحد. reason: اشرح صراحةً كيف يناسب الطول ${order.height} والوزن ${order.weight} ولون البشرة والمناسبة.
-- ${LANG_INSTRUCTION[lang] || LANG_INSTRUCTION.en}
-  أرجع JSON بالبنية المطلوبة فقط.`;
+- التزم بالستايل («${order.style}») بدقة، وراعِ الموسم والمناسبة والقوام (${body}).
+- اجعل التنسيقات الخمسة متنوّرة تماماً في الألوان والأشكال والقَصّات — لا تكرّر نفس الألوان أو القطع.
+- title: اسم جذّاب قصير. description: وصف سطر واحد. reason: شرح مفصّل لماذا يناسب المستخدم (الستايل/القوام/الموسم/المناسبة).
+- ${LANG_INSTRUCTION[lang] || LANG_INSTRUCTION.en} عدا brand (بالإنجليزية كما تكتبه الماركة).
+أرجع JSON بالبنية المطلوبة فقط.`;
 }
 
 function styleEnglish(style) {
@@ -204,37 +203,24 @@ function seasonEnglish(season) {
 
 function buildImagePrompt(outfit, order) {
   const isMale = order.gender === 'ذكر';
-  const genderWord = isMale ? 'man' : 'woman';
+  const genderWord = isMale ? 'male' : 'female';
+  const adj = isMale ? 'handsome' : 'beautiful';
   const body = bodyDescriptor(order);
-  const skin = skinToneWord(order.skin_tone) || 'natural healthy skin tone';
+  const skin = skinToneWord(order.skin_tone);
   const items = (outfit.products || [])
-    .map((p) => {
-      const name = p.product_name_en || p.product_name || '';
-      const hasArabic = /[\u0600-\u06FF]/.test(name);
-      return hasArabic
-        ? `${p.color || ''} ${p.brand || ''} ${p.role || 'garment'}`.trim()
-        : `${p.color || ''} ${p.brand || ''} ${name}`.trim();
-    })
-    .filter(Boolean)
-    .join('; ');
+    .map((p) => [p.color, p.brand, p.product_name].filter(Boolean).join(' '))
+    .join(', ');
   const hijabi = order.style === 'محجبة';
   const styleWord = styleEnglish(order.style);
   const occWord = occasionEnglish(order.occasion);
   const seasonWord = seasonEnglish(order.season);
-  const head = hijabi
-    ? 'She wears a neatly styled matching hijab covering hair and neck, long sleeves, long modest silhouette, no skin exposure.'
-    : isMale
-      ? 'Short masculine haircut, masculine jawline, flat chest, clear male proportions, menswear only.'
-      : 'Feminine hairstyle and proportions, womenswear only.';
-  return [
-    `Premium full-body fashion editorial photo of one ${genderWord}, ${skin}, ${body}.`,
-    `Wearing one cohesive ${styleWord} outfit for ${occWord} during ${seasonWord}.`,
-    `Garments: ${items}.`,
-    head,
-    'Perfect fit and color harmony. Shoes fully visible. Head-to-toe framing.',
-    'Vogue lookbook, soft studio lighting, warm ivory seamless backdrop, photorealistic 8k, sharp fabric texture.',
-    'Single person only. No text, no watermark, no collage, no distorted anatomy.',
-  ].join(' ');
+  const headClause = hijabi
+    ? '. The model wears a matching hijab headscarf that fully covers the hair and neck, a long-sleeve loose tunic or oversized top, and a long flowing maxi skirt or wide-leg trousers'
+    : '';
+  const genderClause = isMale
+    ? '. Clearly depict a masculine man with short masculine hairstyle, masculine facial features, flat chest and male body proportions, wearing menswear only — not a woman, no feminine features'
+    : '. Clearly depict a feminine woman with feminine hairstyle and female body proportions, wearing womenswear';
+  return `Full-body editorial fashion lookbook photograph of a ${adj} ${body} ${genderWord} fashion model${skin ? ' with ' + skin : ''} wearing a complete ${styleWord} outfit, styled for ${occWord} during ${seasonWord}${headClause}${genderClause}. The carefully curated look consists of: ${items}. Tailoring and silhouette flatter this exact ${genderWord} body type and proportions, colors harmonize beautifully. The model stands in a full-length vertical framing shot from head to feet so the entire outfit — including the shoes/footwear — is fully visible, sharp and clearly detailed at the bottom of the frame. Emphasize the footwear clearly: show the complete shoes in full detail, well-lit, not cropped or cut off. Vogue magazine aesthetic, professional studio lighting with soft beautiful shadows and gentle rim light, clean seamless warm ivory studio backdrop, ultra-photorealistic, high-resolution, sharp focus, full outfit visible head-to-toe, natural confident graceful elegant pose with feet slightly apart to reveal the shoes, refined cinematic color grading, depth of field, 8k detail, photoreal skin texture, no text, no watermark.`;
 }
 
 function buildFlatLayPrompt(outfit, order) {
@@ -366,21 +352,12 @@ export default async function(req) {
     const order = await base44.asServiceRole.entities.StylingOrder.get(body.order_id);
     if (!order) return Response.json({ error: 'الطلب غير موجود' }, { status: 404 });
 
-    if (order.created_by_id && order.created_by_id !== me.id) {
-      const byEmail = order.created_by && (order.created_by === me.email || order.created_by === me.id);
-      if (!byEmail) {
-        return Response.json({ error: 'غير مصرّح بالوصول إلى هذا الطلب', code: 'forbidden' }, { status: 403 });
-      }
+    if (order.created_by_id !== me.id) {
+      return Response.json({ error: 'غير مصرّف بالوصول إلى هذا الطلب' }, { status: 403 });
     }
 
-    // نسخة مجانية لـ App Store — إطلالة واحدة من الـ AI؛ المدفوعة لاحقاً يمكن رفع العدد.
-    const PAYMENTS_ENABLED = false;
-    const OUTFIT_TARGET = PAYMENTS_ENABLED ? 5 : 1;
-    // لا نتخطّى الـ LLM: تكرار نفس القوالب كان سبب ظهور نفس التصميم دائماً
-    const skipLlm = false;
-
     // إعادة تنسيقات موجودة عند إعادة الزيارة؛ إن كانت بلا صور (بسبب انقطاع سابق) نولّد الصور الناقصة
-    if (order.outfits && order.outfits.length >= OUTFIT_TARGET) {
+    if (order.outfits && order.outfits.length >= 5) {
       const missing = order.outfits.filter((o) => !o.image_url);
       if (missing.length) {
         try {
@@ -393,40 +370,17 @@ export default async function(req) {
       return Response.json({ order_id: order.id, outfits: order.outfits, order: orderSummary(order) });
     }
 
-    // build marker: free-gen-2026-09-08-one
-    console.log('generate-outfits start', { order_id: order.id, free: skipLlm, payments: PAYMENTS_ENABLED, target: OUTFIT_TARGET });
+    // التحقق من دفع هذا الطلب قبل التوليد
+    if (order.payment_status !== 'paid') {
+      return Response.json({ error: 'يجب إتمام الدفع أولاً للحصول على الإطلالات.', code: 'payment_required' }, { status: 402 });
+    }
 
-    // تأكيد حالة الطلب مجاناً حتى لو اتنشأ من مسار قديم بدون paid/credit_spent
-    if (!PAYMENTS_ENABLED) {
-      try {
-        if (order.payment_status !== 'paid' || !order.credit_spent) {
-          await base44.asServiceRole.entities.StylingOrder.update(order.id, {
-            payment_status: 'paid',
-            credit_spent: true,
-          });
-          order.payment_status = 'paid';
-          order.credit_spent = true;
-        }
-        const credits = Number(me.credits) || 0;
-        if (credits <= 0) {
-          await base44.asServiceRole.entities.User.update(me.id, { credits: 1 });
-        }
-      } catch (e) {
-        console.error('free-mode order unlock failed:', e?.message || e);
-      }
-    } else {
-      if (order.payment_status !== 'paid') {
-        return Response.json({ error: 'يجب إتمام الدفع أولاً للحصول على الإطلالات.', code: 'payment_required' }, { status: 402 });
-      }
-      if (!order.credit_spent) {
-        const meCredits = Number(me.credits) || 0;
-        if (meCredits <= 0) {
-          try {
-            await base44.asServiceRole.entities.User.update(me.id, { credits: 1 });
-          } catch {
-            return Response.json({ error: 'لا تملك رصيد كريديت كافٍ.', code: 'no_credits' }, { status: 402 });
-          }
-        }
+    // الكريديت يُخصم عند create-order / unlock-generation. هنا نتحقق فقط
+    // للطلبات القديمة التي دُفعت قبل الخصم المبكر ولم تُعلَّم credit_spent.
+    if (!order.credit_spent) {
+      const meCredits = Number(me.credits) || 0;
+      if (meCredits <= 0) {
+        return Response.json({ error: 'لا تملك رصيد كريديت كافٍ.', code: 'no_credits' }, { status: 402 });
       }
     }
 
@@ -574,7 +528,7 @@ export default async function(req) {
 
     const pushValid = (rawList, materialize) => {
       for (const ro of rawList) {
-        if (outfits.length >= OUTFIT_TARGET) break;
+        if (outfits.length >= 5) break;
         const o = materialize(ro);
         if (!o) continue;
         const key = keyOf(o);
@@ -584,8 +538,8 @@ export default async function(req) {
       }
     };
 
-    // 1) وضع الكتالوج: إن توفرت منتجات كافية، نختار منها أولاً (يتخطّى في النسخة المجانية لتفادي مهلة/رصيد LLM)
-    if (hasCatalog && !skipLlm) {
+    // 1) وضع الكتالوج: إن توفرت منتجات كافية، نختار منها أولاً
+    if (hasCatalog) {
       const catalog = sorted.map((p) => ({
         id: p.id,
         brand: p.brand,
@@ -605,7 +559,7 @@ export default async function(req) {
 
       try {
         const llmRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: buildCatalogPrompt(order, catalog, lang, OUTFIT_TARGET),
+          prompt: buildCatalogPrompt(order, catalog, lang),
           response_json_schema: CATALOG_SCHEMA
         });
         pushValid((llmRes && Array.isArray(llmRes.outfits)) ? llmRes.outfits : [], materializeCatalog);
@@ -614,11 +568,11 @@ export default async function(req) {
       }
 
       // محاولة إضافية للكتالوج
-      if (outfits.length < OUTFIT_TARGET) {
-        const need = OUTFIT_TARGET - outfits.length;
+      if (outfits.length < 5) {
+        const need = 5 - outfits.length;
         try {
           const retryRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: buildCatalogPrompt(order, catalog, lang, OUTFIT_TARGET) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى) من نفس الكتالوج، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
+            prompt: buildCatalogPrompt(order, catalog, lang) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى) من نفس الكتالوج، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
             response_json_schema: CATALOG_SCHEMA
           });
           pushValid((retryRes && Array.isArray(retryRes.outfits)) ? retryRes.outfits : [], materializeCatalog);
@@ -628,12 +582,12 @@ export default async function(req) {
       }
 
       // تعبئة برمجية من الكتالوج إن بقى نقص
-      if (outfits.length < OUTFIT_TARGET) {
+      if (outfits.length < 5) {
         const tops = sorted.filter((p) => p.category === 'top');
         const bottoms = sorted.filter((p) => p.category === 'bottom');
         const shoes = sorted.filter((p) => p.category === 'shoes');
         let ti = 0, bi = 0, si = 0, attempts = 0;
-        while (outfits.length < OUTFIT_TARGET && tops.length && bottoms.length && shoes.length && attempts < 60) {
+        while (outfits.length < 5 && tops.length && bottoms.length && shoes.length && attempts < 60) {
           attempts++;
           const t = tops[ti % tops.length];
           const b = bottoms[bi % bottoms.length];
@@ -647,11 +601,11 @@ export default async function(req) {
       }
     }
 
-    // 2) الوضع الإبداعي: اقتراحات مع ماركات عالمية (LLM يُتخطّى في المجاني)
-    if (outfits.length < OUTFIT_TARGET && !skipLlm) {
+    // 2) الوضع الإبداعي: إن لم يكفِ الكتالوج، نولّد اقتراحات مع ماركات عالمية
+    if (outfits.length < 5) {
       try {
         const llmRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: buildCreativePrompt(order, lang, OUTFIT_TARGET),
+          prompt: buildCreativePrompt(order, lang),
           response_json_schema: CREATIVE_SCHEMA
         });
         pushValid((llmRes && Array.isArray(llmRes.outfits)) ? llmRes.outfits : [], materializeCreative);
@@ -659,11 +613,11 @@ export default async function(req) {
         console.error('creative LLM failed:', e.message);
       }
 
-      if (outfits.length < OUTFIT_TARGET) {
-        const need = OUTFIT_TARGET - outfits.length;
+      if (outfits.length < 5) {
+        const need = 5 - outfits.length;
         try {
           const retryRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: buildCreativePrompt(order, lang, OUTFIT_TARGET) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى)، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
+            prompt: buildCreativePrompt(order, lang) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى)، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
             response_json_schema: CREATIVE_SCHEMA
           });
           pushValid((retryRes && Array.isArray(retryRes.outfits)) ? retryRes.outfits : [], materializeCreative);
@@ -671,30 +625,25 @@ export default async function(req) {
           console.error('creative retry failed:', e.message);
         }
       }
-    }
 
-    // تعبئة إبداعية برمجية — تضمن العدد المطلوب حتى بدون LLM (seed من بيانات الطلب)
-    if (outfits.length < OUTFIT_TARGET) {
-      const baseSeed = (() => {
-        const s = `${order.id}|${order.height}|${order.weight}|${order.gender}|${order.skin_tone}|${order.season}|${order.style}|${order.occasion}`;
-        let h = 0;
-        for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
-        return Math.abs(h) || 1;
-      })();
-      let seed = 0;
-      while (outfits.length < OUTFIT_TARGET && seed < 80) {
-        seed++;
-        const o = creativeFillOutfit(order, outfits.length + 1, lang, baseSeed + seed * 17);
-        const key = keyOf(o);
-        if (usedKeys.has(key)) continue;
-        usedKeys.add(key);
-        outfits.push(o);
+      // تعبئة إبداعية برمجية للوصول إلى ٥ إطلالات دائماً
+      if (outfits.length < 5) {
+        let seed = 0;
+        while (outfits.length < 5 && seed < 80) {
+          seed++;
+          const o = creativeFillOutfit(order, outfits.length + 1, lang, seed);
+          const key = keyOf(o);
+          if (usedKeys.has(key)) continue;
+          usedKeys.add(key);
+          outfits.push(o);
+        }
       }
     }
 
-    if (outfits.length < 1) {
+    if (outfits.length < 5) {
+      // نظام الدفع مُلغى — يبقى الطلب مفعّلاً ليتمكن المستخدم من إعادة المحاولة مباشرة
       return Response.json({
-        error: 'لم نتمكن من توليد التنسيقات. يمكنك المحاولة مجدداً.',
+        error: 'لم نتمكن من توليد ٥ تنسيقات كاملة. يمكنك المحاولة مجدداً.',
         code: 'generation_failed'
       }, { status: 503 });
     }
@@ -721,8 +670,8 @@ export default async function(req) {
     }
 
     // خصم كريديت للطلبات القديمة فقط (قبل خصم create-order). الطلبات الجديدة
-    // عليها credit_spent=true فلا تُخصم مرة ثانية. يُتخطّى في النسخة المجانية.
-    if (PAYMENTS_ENABLED && !order.credit_spent) {
+    // عليها credit_spent=true فلا تُخصم مرة ثانية.
+    if (!order.credit_spent) {
       try {
         const fresh = await base44.asServiceRole.entities.User.get(me.id);
         const current = Number(fresh?.credits) || 0;

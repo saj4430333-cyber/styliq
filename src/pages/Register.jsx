@@ -28,7 +28,6 @@ export default function Register() {
   const [showPass, setShowPass] = useState(false);
 
   const returnTo = safeReturnTo();
-  const pendingCreate = (returnTo || '').includes('create=1');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,27 +142,13 @@ export default function Register() {
           <Link to={"/login" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")} className="text-primary font-medium hover:underline">
             تسجيل الدخول
           </Link>
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => navigate(pendingCreate ? "/styling" : "/", { replace: true })}
-              className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-            >
-              المتابعة كزائر
-            </button>
-          </div>
         </>
       }
     >
       <div dir="rtl">
-        {pendingCreate && (
-          <div className="mb-4 p-3 rounded-xl bg-accent/10 border border-accent/20 text-sm text-center">
-            بياناتك محفوظة. أنشئ حساباً أو سجّل الدخول لإنشاء الإطلالات والصور.
-          </div>
-        )}
         {/* مزوّدو الدخول — رأسي، Apple في الأعلى */}
         <div className="space-y-3 mb-5">
-          <Button variant="outline" className="w-full h-12 rounded-xl text-sm font-medium" onClick={() => handleProvider("apple")} disabled={loading}>
+          <Button variant="outline" className="w-full h-12 rounded-xl text-sm font-medium" onClick={() => handleProvider("apple")}>
             <AppleIcon className="w-5 h-5 ml-2" />
             التسجيل عبر Apple
           </Button>

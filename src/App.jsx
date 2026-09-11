@@ -1,10 +1,9 @@
-import React, { lazy, Suspense } from 'react';
+import React from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { isNative } from '@/lib/native';
-import { isPaymentsEnabled } from '@/lib/features';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
@@ -22,6 +21,7 @@ import Results from './pages/Results';
 import RecommendedBrands from './pages/RecommendedBrands';
 import MyStyles from './pages/MyStyles';
 import Account from './pages/Account';
+import Pricing from './pages/Pricing';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Contact from './pages/Contact';
@@ -30,11 +30,6 @@ import Designs from './pages/Designs';
 import Onboarding from './pages/Onboarding';
 
 const Router = isNative() ? HashRouter : BrowserRouter;
-
-// تُحمَّل صفحة الشراء فقط عند تفعيل الدفع — النسخة المجانية لا تضمّن مسار IAP.
-const PricingPage = isPaymentsEnabled()
-  ? lazy(() => import('./pages/Pricing'))
-  : null;
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
@@ -74,18 +69,7 @@ const AuthenticatedApp = () => {
           <Route path="/designs" element={<Designs />} />
           <Route path="/my-styles" element={<MyStyles />} />
           <Route path="/account" element={<Account />} />
-          <Route
-            path="/pricing"
-            element={
-              PricingPage ? (
-                <Suspense fallback={null}>
-                  <PricingPage />
-                </Suspense>
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
+          <Route path="/pricing" element={<Pricing />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

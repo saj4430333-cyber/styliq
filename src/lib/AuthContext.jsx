@@ -3,8 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { apiServerUrl } from '@/lib/native';
+import { configureIAP } from '@/lib/iap';
 import { initNativeAuthListener, isNativeAuthAvailable, clearAuthSession } from '@/lib/nativeAuth';
-import { isPaymentsEnabled } from '@/lib/features';
 
 const AuthContext = createContext();
 
@@ -21,12 +21,10 @@ export const AuthProvider = ({ children }) => {
     checkAppState();
   }, []);
 
-  // RevenueCat فقط عند تفعيل الدفع — النسخة المجانية لا تستدعي StoreKit أصلاً.
+  // RevenueCat يجب أن يعرف معرّف مستخدم Base44 قبل أي شراء، وإلا لن يجده الويبهوك.
   useEffect(() => {
-    if (!isPaymentsEnabled() || !user?.id) return;
-    import('@/lib/iap')
-      .then(({ configureIAP }) => configureIAP(user.id))
-      .catch((e) => console.error('RevenueCat configure failed:', e));
+    if (!user?.id) return;
+    configureIAP(user.id).catch((e) => console.error('RevenueCat configure failed:', e));
   }, [user?.id]);
 
   // عودة Google/Apple من Safari على iOS تصل كرابط عميق يحمل access_token.

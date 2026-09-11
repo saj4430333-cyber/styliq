@@ -15,24 +15,14 @@ export default async function (req: Request): Promise<Response> {
   const incoming = new URL(req.url).searchParams;
 
   // لا نعيد التوجيه إلا مع توكن فعلي، حتى لا يُستخدم الرابط لفتح التطبيق عبثاً.
-  // بعض مزوّدي OAuth (مثل Apple) قد يمرّرون التوكن في الـ hash بدل query.
-  const hashParams = new URL(req.url).hash
-    ? new URLSearchParams(new URL(req.url).hash.replace(/^#/, ''))
-    : null;
-  const accessToken = incoming.get('access_token') || hashParams?.get('access_token');
-  if (!accessToken) {
+  if (!incoming.get('access_token')) {
     return new Response(
       'Missing access_token. This endpoint only forwards a completed Base44 sign-in to the iOS app.',
       { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
     );
   }
 
-  // نبني query نهائية مع كل المعاملات + ضمان وجود access_token في الـ query للتطبيق.
-  const forward = new URLSearchParams(incoming.toString());
-  if (!forward.get('access_token')) forward.set('access_token', accessToken);
-  const target = `${APP_SCHEME}://${CALLBACK_HOST}?${forward.toString()}`;
-  // مسار احتياطي إذا حذف iOS الـ query من الـ custom scheme
-  const targetWithPath = `${APP_SCHEME}://${CALLBACK_HOST}/${encodeURIComponent(accessToken)}?${forward.toString()}`;
+  const target = `${APP_SCHEME}://${CALLBACK_HOST}?${incoming.toString()}`;
 
   // 302 إلى الـ scheme: ASWebAuthenticationSession على iOS تلتقط هذا التحويل
   // وتغلق الجلسة. صفحة HTML تبقى احتياطاً للمتصفحات التي لا تتبع التحويل.
@@ -47,14 +37,7 @@ export default async function (req: Request): Promise<Response> {
 <body>
   <p>جارٍ إعادتك إلى التطبيق…</p>
   <a href="${target}">العودة إلى StyliQ</a>
-  <script>
-    (function () {
-      var a = ${JSON.stringify(target)};
-      var b = ${JSON.stringify(targetWithPath)};
-      try { window.location.replace(a); } catch (e) {}
-      setTimeout(function () { try { window.location.href = b; } catch (e2) {} }, 400);
-    })();
-  </script>
+  <script>window.location.replace(${JSON.stringify(target)});</script>
 </body>
 </html>`;
 

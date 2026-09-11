@@ -66,15 +66,6 @@
     user-select: none;
   }
 
-  /* ضروري على iOS WKWebView — بدونها لوحة المفاتيح تظهر لكن النص لا يُكتب */
-  input,
-  textarea,
-  [contenteditable="true"] {
-    -webkit-user-select: text;
-    user-select: text;
-    -webkit-touch-callout: default;
-  }
-
   html, body, #root {
     height: 100%;
   }

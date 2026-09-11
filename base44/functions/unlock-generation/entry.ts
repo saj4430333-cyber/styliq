@@ -3,9 +3,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 // معرّف منتج الشراء داخل التطبيق (Apple StoreKit / Google Play Billing) — Consumable
 export const PRODUCT_ID = 'com.styliq.premium';
 
-// متزامن مع src/lib/features.js و create-order
-const PAYMENTS_ENABLED = false;
-
 const MAX_SPEND_ATTEMPTS = 3;
 
 async function spendOneCredit(base44, userId) {
@@ -61,19 +58,16 @@ export default async function(req) {
       });
     }
 
-    if (order.credited || !PAYMENTS_ENABLED) {
+    // رصيد مجاني من فشل توليد سابق: نفتح بدون خصم إضافي.
+    if (order.credited) {
       await base44.asServiceRole.entities.StylingOrder.update(order.id, {
         payment_status: 'paid',
         credit_spent: true,
       });
-      return Response.json({
-        ok: true,
-        credited: !!order.credited,
-        free: !PAYMENTS_ENABLED,
-        product_id: PRODUCT_ID,
-      });
+      return Response.json({ ok: true, credited: true, product_id: PRODUCT_ID });
     }
 
+    // لازم نخصم كريديت واحد هنا — وإلا يُفتح التوليد دون استهلاك الباقة.
     const spent = await spendOneCredit(base44, me.id);
     if (!spent.ok) {
       return Response.json(
