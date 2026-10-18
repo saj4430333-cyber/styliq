@@ -13,6 +13,8 @@ import { base44 } from '@/api/base44Client';
 import { STYLES, HIJABI_STYLE } from '@/lib/styles';
 import { styleDisplayName } from '@/lib/translate';
 import CreditPurchase from '@/components/CreditPurchase';
+import { useAuth } from '@/lib/AuthContext';
+import { savePendingForm } from '@/lib/pendingForm';
 
 const SEASON_VALUES = ['ربيع', 'صيف', 'خريف', 'شتاء'];
 const OCCASION_VALUES = ['يومي', 'عمل', 'مناسبة اجتماعية', 'موعد', 'سفر'];
@@ -34,6 +36,7 @@ function Pill({ label, value, selected, onClick }) {
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const { applyCredits, refreshUser } = useAuth();
   const [step, setStep] = useState(0);
   const [lang, setLangState] = useState(getLang());
   const [form, setForm] = useState({ height: '', weight: '', gender: '', season: '', style: '', occasion: '' });
@@ -67,10 +70,15 @@ export default function Onboarding() {
     setOnboarded();
     try {
       const authed = await base44.auth.isAuthenticated();
-      if (authed) setStep(1);
-      else navigate('/register?returnTo=/');
-    } catch (e) {
-      navigate('/register?returnTo=/');
+      if (authed) {
+        // مستخدم مسجّل: كمّل تفضيلات التصميم
+        setStep(1);
+      } else {
+        // زائر: ادخل التطبيق بدون تسجيل — الحساب يُطلب عند إنشاء تصميم
+        navigate('/', { replace: true });
+      }
+    } catch {
+      navigate('/', { replace: true });
     }
   };
 
@@ -90,6 +98,21 @@ export default function Onboarding() {
     if (Object.keys(e).length) { setErrors(e); return; }
     setOnboardingPrefs(form);
     setOnboarded();
+
+    // زائر أثناء الإعداد: احفظ البيانات واطلب الحساب قبل الخصم/الإنشاء
+    try {
+      const authed = await base44.auth.isAuthenticated();
+      if (!authed) {
+        savePendingForm(form);
+        navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
+        return;
+      }
+    } catch {
+      savePendingForm(form);
+      navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
+      return;
+    }
+
     runCreateOrder();
   };
 
@@ -99,6 +122,10 @@ export default function Onboarding() {
       const res = await base44.functions.invoke('create-order', { form });
       const orderId = res.data?.order_id;
       if (!orderId) throw new Error(res.data?.error || 'error');
+      const afterCredits = res.data?.credits;
+      if (afterCredits != null) applyCredits?.(afterCredits);
+      await refreshUser?.();
+      if (afterCredits != null) applyCredits?.(afterCredits);
       navigate('/results?order_id=' + orderId);
     } catch (err) {
       const status = err?.response?.status || err?.status;
@@ -176,6 +203,12 @@ export default function Onboarding() {
                       </button>
                     ))}
                   </div>
+                  <button
+                    onClick={() => navigate('/login?returnTo=' + encodeURIComponent('/'))}
+                    className="w-full text-center text-sm text-muted-foreground mt-6 py-2"
+                  >
+                    {s.have_account}
+                  </button>
                 </div>
               )}
 

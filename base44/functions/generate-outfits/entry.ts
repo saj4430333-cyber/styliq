@@ -201,15 +201,23 @@ function seasonEnglish(season) {
   return map[season] || season;
 }
 
+function englishGarmentLine(p) {
+  const hasArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
+  const color = hasArabic(p?.color) ? '' : (p?.color || '');
+  const brand = hasArabic(p?.brand) ? '' : (p?.brand || '');
+  const name = hasArabic(p?.product_name)
+    ? (p?.category || p?.role || 'garment')
+    : (p?.product_name || p?.category || p?.role || 'garment');
+  return [color, brand, name].filter(Boolean).join(' ');
+}
+
 function buildImagePrompt(outfit, order) {
   const isMale = order.gender === 'ذكر';
   const genderWord = isMale ? 'male' : 'female';
   const adj = isMale ? 'handsome' : 'beautiful';
   const body = bodyDescriptor(order);
   const skin = skinToneWord(order.skin_tone);
-  const items = (outfit.products || [])
-    .map((p) => [p.color, p.brand, p.product_name].filter(Boolean).join(' '))
-    .join(', ');
+  const items = (outfit.products || []).map(englishGarmentLine).filter(Boolean).join(', ') || 'a coordinated fashion outfit';
   const hijabi = order.style === 'محجبة';
   const styleWord = styleEnglish(order.style);
   const occWord = occasionEnglish(order.occasion);
@@ -220,13 +228,11 @@ function buildImagePrompt(outfit, order) {
   const genderClause = isMale
     ? '. Clearly depict a masculine man with short masculine hairstyle, masculine facial features, flat chest and male body proportions, wearing menswear only — not a woman, no feminine features'
     : '. Clearly depict a feminine woman with feminine hairstyle and female body proportions, wearing womenswear';
-  return `Full-body editorial fashion lookbook photograph of a ${adj} ${body} ${genderWord} fashion model${skin ? ' with ' + skin : ''} wearing a complete ${styleWord} outfit, styled for ${occWord} during ${seasonWord}${headClause}${genderClause}. The carefully curated look consists of: ${items}. Tailoring and silhouette flatter this exact ${genderWord} body type and proportions, colors harmonize beautifully. The model stands in a full-length vertical framing shot from head to feet so the entire outfit — including the shoes/footwear — is fully visible, sharp and clearly detailed at the bottom of the frame. Emphasize the footwear clearly: show the complete shoes in full detail, well-lit, not cropped or cut off. Vogue magazine aesthetic, professional studio lighting with soft beautiful shadows and gentle rim light, clean seamless warm ivory studio backdrop, ultra-photorealistic, high-resolution, sharp focus, full outfit visible head-to-toe, natural confident graceful elegant pose with feet slightly apart to reveal the shoes, refined cinematic color grading, depth of field, 8k detail, photoreal skin texture, no text, no watermark.`;
+  return `Full-body editorial fashion lookbook photograph of a ${adj} ${body} ${genderWord} fashion model${skin ? ' with ' + skin : ''} wearing a complete ${styleWord} outfit, styled for ${occWord} during ${seasonWord}${headClause}${genderClause}. The carefully curated look consists of: ${items}. Tailoring and silhouette flatter this exact ${genderWord} body type and proportions, colors harmonize beautifully. The model stands in a full-length vertical framing shot from head to feet so the entire outfit — including the shoes/footwear — is fully visible, sharp and clearly detailed at the bottom of the frame. Emphasize the footwear clearly: show the complete shoes in full detail, well-lit, not cropped or cut off. Vogue magazine aesthetic, professional studio lighting with soft beautiful shadows and gentle rim light, clean seamless warm ivory studio backdrop, ultra-photorealistic, high-resolution, sharp focus, full outfit visible head-to-toe, natural confident graceful elegant pose with feet slightly apart to reveal the shoes, refined cinematic color grading, depth of field, 8k detail, photoreal skin texture. Single person only. No text, no watermark.`;
 }
 
 function buildFlatLayPrompt(outfit, order) {
-  const items = (outfit.products || [])
-    .map((p) => [p.color, p.brand, p.product_name].filter(Boolean).join('، '))
-    .join('، ');
+  const items = (outfit.products || []).map(englishGarmentLine).filter(Boolean).join(', ') || 'coordinated garments and shoes';
   const flatStyleWord = styleEnglish(order.style);
   const hijabGarment = order.style === 'محجبة' ? ', a neatly folded hijab headscarf' : '';
   return `Top-down editorial flat-lay photograph of a complete ${flatStyleWord} outfit neatly arranged on a clean warm beige marble surface, no person, garments and shoes laid out flat with elegant spacing and refined styling: ${items}${hijabGarment}. The shoes/footwear are placed fully visible and clearly detailed at the bottom of the frame, nothing covering or overlapping them. Soft even natural overhead lighting, styled editorial flat-lay composition, high-fashion catalog aesthetic, ultra-photorealistic, bird's-eye top-down view, subtle tasteful props like sunglasses, a folded silk scarf or a magazine corner, refined cinematic color grading, 8k detail, no text, no model.`;
@@ -315,12 +321,12 @@ async function generateOutfitImages(base44, outfitsList, order) {
       withImageTimeout(
         base44.asServiceRole.integrations.Core.GenerateImage({ prompt: buildImagePrompt(o, order) })
           .then((r) => r && r.url).catch(() => null),
-        45000
+        70000
       ),
       withImageTimeout(
         base44.asServiceRole.integrations.Core.GenerateImage({ prompt: buildFlatLayPrompt(o, order) })
           .then((r) => r && r.url).catch(() => null),
-        45000
+        50000
       )
     ])
   ));
@@ -335,6 +341,9 @@ export default async function(req) {
     const body = await req.json();
     const base44 = createClientFromRequest(req);
     const lang = body.lang || 'ar';
+    // النسخة المدفوعة: دائمًا ٥ إطلالات
+    const OUTFIT_TARGET = 5;
+    const forceRegen = body.force_regenerate === true;
 
     if (!body.order_id) {
       return Response.json({ error: 'معرف الطلب مطلوب' }, { status: 400 });
@@ -353,21 +362,38 @@ export default async function(req) {
     if (!order) return Response.json({ error: 'الطلب غير موجود' }, { status: 404 });
 
     if (order.created_by_id !== me.id) {
-      return Response.json({ error: 'غير مصرّف بالوصول إلى هذا الطلب' }, { status: 403 });
+      return Response.json({ error: 'غير مصرّح بالوصول إلى هذا الطلب' }, { status: 403 });
     }
 
-    // إعادة تنسيقات موجودة عند إعادة الزيارة؛ إن كانت بلا صور (بسبب انقطاع سابق) نولّد الصور الناقصة
-    if (order.outfits && order.outfits.length >= 5) {
-      const missing = order.outfits.filter((o) => !o.image_url);
-      if (missing.length) {
-        try {
-          await generateOutfitImages(base44, missing, order);
-          await base44.asServiceRole.entities.StylingOrder.update(order.id, { outfits: order.outfits });
-        } catch (e) {
-          console.error('cached image fill failed:', e.message);
-        }
+    console.log('generate-outfits start', {
+      order_id: order.id,
+      cached: order.outfits?.length || 0,
+      target: OUTFIT_TARGET,
+      forceRegen,
+    });
+
+    // امسح الكاش إن طُلب إعادة التوليد أو إن العدد ليس ٥ بالضبط (بقايا النسخة المجانية)
+    if (forceRegen || (order.outfits && order.outfits.length > 0 && order.outfits.length !== OUTFIT_TARGET)) {
+      try {
+        await base44.asServiceRole.entities.StylingOrder.update(order.id, { outfits: [] });
+        order.outfits = [];
+        console.log('generate-outfits cleared partial/stale outfits');
+      } catch (e) {
+        console.error('clear outfits failed:', e.message);
+        order.outfits = [];
       }
-      return Response.json({ order_id: order.id, outfits: order.outfits, order: orderSummary(order) });
+    }
+
+    // إعادة تنسيقات موجودة عند إعادة الزيارة فقط إن كانت ٥ كاملة
+    if (!forceRegen && order.outfits && order.outfits.length === OUTFIT_TARGET) {
+      return Response.json({
+        order_id: order.id,
+        outfits: order.outfits.slice(0, OUTFIT_TARGET),
+        order: orderSummary(order),
+        target: OUTFIT_TARGET,
+        images_pending: order.outfits.some((o) => !o?.image_url),
+        build: 'paid-5-fast-2026-09-12b',
+      });
     }
 
     // التحقق من دفع هذا الطلب قبل التوليد
@@ -522,155 +548,40 @@ export default async function(req) {
       return { title: ro.title, description: ro.description, reason: ro.reason, products: items };
     };
 
+    // ٥ إطلالات برمجية فورًا — بدون LLM حتى لا يحدث timeout ويظهر إطلالة واحدة
     const outfits = [];
-    const usedKeys = new Set();
-    const keyOf = (o) => (o.products || []).map((p) => p.real ? p.product_id : (p.brand + p.product_name)).sort().join('|');
+    for (let seed = 1; outfits.length < OUTFIT_TARGET && seed <= OUTFIT_TARGET + 10; seed++) {
+      outfits.push(creativeFillOutfit(order, outfits.length + 1, lang, seed * 3));
+    }
 
-    const pushValid = (rawList, materialize) => {
-      for (const ro of rawList) {
-        if (outfits.length >= 5) break;
-        const o = materialize(ro);
-        if (!o) continue;
-        const key = keyOf(o);
-        if (usedKeys.has(key)) continue;
-        usedKeys.add(key);
-        outfits.push(o);
-      }
-    };
-
-    // 1) وضع الكتالوج: إن توفرت منتجات كافية، نختار منها أولاً
-    if (hasCatalog) {
-      const catalog = sorted.map((p) => ({
-        id: p.id,
-        brand: p.brand,
-        product_name: p.product_name,
-        category: p.category,
-        subcategory: p.subcategory,
-        gender: p.gender,
-        color: p.color,
-        season: p.season,
-        occasion: p.occasion,
-        style: p.style,
-        price: p.price,
-        currency: p.currency,
-        availability_status: p.availability_status,
-        _match: relevance(p)
-      }));
-
-      try {
-        const llmRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: buildCatalogPrompt(order, catalog, lang),
-          response_json_schema: CATALOG_SCHEMA
-        });
-        pushValid((llmRes && Array.isArray(llmRes.outfits)) ? llmRes.outfits : [], materializeCatalog);
-      } catch (e) {
-        console.error('catalog LLM failed:', e.message);
-      }
-
-      // محاولة إضافية للكتالوج
-      if (outfits.length < 5) {
-        const need = 5 - outfits.length;
-        try {
-          const retryRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: buildCatalogPrompt(order, catalog, lang) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى) من نفس الكتالوج، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
-            response_json_schema: CATALOG_SCHEMA
-          });
-          pushValid((retryRes && Array.isArray(retryRes.outfits)) ? retryRes.outfits : [], materializeCatalog);
-        } catch (e) {
-          console.error('catalog retry failed:', e.message);
-        }
-      }
-
-      // تعبئة برمجية من الكتالوج إن بقى نقص
-      if (outfits.length < 5) {
-        const tops = sorted.filter((p) => p.category === 'top');
-        const bottoms = sorted.filter((p) => p.category === 'bottom');
-        const shoes = sorted.filter((p) => p.category === 'shoes');
-        let ti = 0, bi = 0, si = 0, attempts = 0;
-        while (outfits.length < 5 && tops.length && bottoms.length && shoes.length && attempts < 60) {
-          attempts++;
-          const t = tops[ti % tops.length];
-          const b = bottoms[bi % bottoms.length];
-          const s = shoes[si % shoes.length];
-          ti++; bi++; si++;
-          const key = [t.id, b.id, s.id].sort().join('|');
-          if (usedKeys.has(key)) continue;
-          usedKeys.add(key);
-          outfits.push(fallbackOutfit(order, outfits.length + 1, t, b, s, lang));
+    // إن وُجد كتالوج، حاول ترقية سريعة بدون تعطيل الإرجاع
+    if (hasCatalog && outfits.length >= OUTFIT_TARGET) {
+      const tops = sorted.filter((p) => p.category === 'top');
+      const bottoms = sorted.filter((p) => p.category === 'bottom');
+      const shoes = sorted.filter((p) => p.category === 'shoes');
+      if (tops.length && bottoms.length && shoes.length) {
+        for (let i = 0; i < OUTFIT_TARGET; i++) {
+          const t = tops[i % tops.length];
+          const b = bottoms[(i + 1) % bottoms.length];
+          const s = shoes[(i + 2) % shoes.length];
+          outfits[i] = fallbackOutfit(order, i + 1, t, b, s, lang);
         }
       }
     }
 
-    // 2) الوضع الإبداعي: إن لم يكفِ الكتالوج، نولّد اقتراحات مع ماركات عالمية
-    if (outfits.length < 5) {
-      try {
-        const llmRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-          prompt: buildCreativePrompt(order, lang),
-          response_json_schema: CREATIVE_SCHEMA
-        });
-        pushValid((llmRes && Array.isArray(llmRes.outfits)) ? llmRes.outfits : [], materializeCreative);
-      } catch (e) {
-        console.error('creative LLM failed:', e.message);
-      }
+    console.log('generate-outfits produced', outfits.length, 'of', OUTFIT_TARGET, 'build=paid-5-instant');
 
-      if (outfits.length < 5) {
-        const need = 5 - outfits.length;
-        try {
-          const retryRes = await base44.asServiceRole.integrations.Core.InvokeLLM({
-            prompt: buildCreativePrompt(order, lang) + `\n\nملاحظة: أنتج ${need} تنسيق إضافي مختلف تماماً (ألوان وقَصّات أخرى)، بنفس البنية. أعد فقط ${need} تنسيقات في outfits.`,
-            response_json_schema: CREATIVE_SCHEMA
-          });
-          pushValid((retryRes && Array.isArray(retryRes.outfits)) ? retryRes.outfits : [], materializeCreative);
-        } catch (e) {
-          console.error('creative retry failed:', e.message);
-        }
-      }
-
-      // تعبئة إبداعية برمجية للوصول إلى ٥ إطلالات دائماً
-      if (outfits.length < 5) {
-        let seed = 0;
-        while (outfits.length < 5 && seed < 80) {
-          seed++;
-          const o = creativeFillOutfit(order, outfits.length + 1, lang, seed);
-          const key = keyOf(o);
-          if (usedKeys.has(key)) continue;
-          usedKeys.add(key);
-          outfits.push(o);
-        }
-      }
+    const finalOutfits = outfits.slice(0, OUTFIT_TARGET);
+    while (finalOutfits.length < OUTFIT_TARGET) {
+      finalOutfits.push(creativeFillOutfit(order, finalOutfits.length + 1, lang, 50 + finalOutfits.length));
     }
 
-    if (outfits.length < 5) {
-      // نظام الدفع مُلغى — يبقى الطلب مفعّلاً ليتمكن المستخدم من إعادة المحاولة مباشرة
-      return Response.json({
-        error: 'لم نتمكن من توليد ٥ تنسيقات كاملة. يمكنك المحاولة مجدداً.',
-        code: 'generation_failed'
-      }, { status: 503 });
-    }
-
-    // حفظ الإطلالات النصية فوراً قبل توليد الصور لضمان بقاءها عند أي انقطاع/مهلة
     try {
-      await base44.asServiceRole.entities.StylingOrder.update(order.id, { outfits });
+      await base44.asServiceRole.entities.StylingOrder.update(order.id, { outfits: finalOutfits });
     } catch (e) {
       console.error('persist text outfits failed:', e.message);
     }
 
-    // توليد صور كل إطلالة بالتوازي مع مهلة لكل صورة
-    try {
-      await generateOutfitImages(base44, outfits, order);
-    } catch (e) {
-      console.error('outfit image generation failed:', e.message);
-    }
-
-    // حفظ الصور إن أمكن، لكن نرجع الإطلالات للمستخدم حتى لو فشل التحديث النهائي
-    try {
-      await base44.asServiceRole.entities.StylingOrder.update(order.id, { outfits });
-    } catch (e) {
-      console.error('final outfits persist failed:', e.message);
-    }
-
-    // خصم كريديت للطلبات القديمة فقط (قبل خصم create-order). الطلبات الجديدة
-    // عليها credit_spent=true فلا تُخصم مرة ثانية.
     if (!order.credit_spent) {
       try {
         const fresh = await base44.asServiceRole.entities.User.get(me.id);
@@ -683,7 +594,15 @@ export default async function(req) {
       }
     }
 
-    return Response.json({ order_id: order.id, outfits, order: orderSummary(order) });
+    return Response.json({
+      order_id: order.id,
+      outfits: finalOutfits,
+      order: orderSummary(order),
+      target: OUTFIT_TARGET,
+      count: finalOutfits.length,
+      images_pending: true,
+      build: 'paid-5-instant-2026-09-12d',
+    });
   } catch (error) {
     console.error('generate-outfits error:', error.message);
     return Response.json({ error: error.message }, { status: 500 });

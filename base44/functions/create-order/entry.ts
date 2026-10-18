@@ -47,15 +47,21 @@ export default async function(req) {
     }
     if (!me) return Response.json({ error: 'يجب تسجيل الدخول أولاً لإنشاء تصميم.', code: 'auth_required' }, { status: 401 });
 
+    const beforeCredits = Number(me.credits) || 0;
+    console.log('create-order spend start', { userId: me.id, beforeCredits, build: 'credit-deduct-2026-09-12e' });
+
     const spent = await spendOneCredit(base44, me.id);
     if (!spent.ok) {
+      console.log('create-order spend failed', { userId: me.id, code: spent.code, beforeCredits });
       return Response.json({
         error: 'لا تملك رصيد كريديت كافٍ. اشترِ باقة للحصول على ٥ إطلالات جديدة.',
         code: spent.code || 'no_credits',
       }, { status: 402 });
     }
+    console.log('create-order spend ok', { userId: me.id, before: spent.before, after: spent.after });
 
-    // الطلب مدفوع لأن الكريديت خُصم بالفعل. نستخدم عميل المستخدم ليُسجَّل created_by_id.
+    // حقول الدفع محمية بـ FLS (write:false): نُنشئ الطلب بعميل المستخدم لـ created_by_id،
+    // ثم نعلّم الدفع عبر service role فقط بعد خصم الكريديت.
     let order;
     try {
       order = await base44.entities.StylingOrder.create({
@@ -66,6 +72,8 @@ export default async function(req) {
         height: Number(form.height),
         weight: Number(form.weight),
         skin_tone: form.skin_tone || null,
+      });
+      await base44.asServiceRole.entities.StylingOrder.update(order.id, {
         payment_status: 'paid',
         credit_spent: true,
       });

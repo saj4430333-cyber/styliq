@@ -16,8 +16,11 @@ export const AUTH_REDIRECT_URL = `${AUTH_SCHEME}://auth`;
 
 const NativeAuth = registerPlugin('NativeAuth');
 
-function authBridgeUrl() {
-  return `${backendOrigin()}/api/apps/${appParams.appId}/functions/auth-bridge`;
+// Base44 يقبل نطاق التطبيق فقط كـ from_url (يرفض رابط الدوال /api/.../functions/...).
+// بعد نجاح OAuth يعود المتصفح لهذا العنوان ومعه access_token، ثم index.html
+// يحوّل إلى scheme التطبيق فيلتقطه أندرويد/iOS.
+function authReturnUrl() {
+  return `${backendOrigin()}/`;
 }
 
 export function isNativeAuthAvailable() {
@@ -36,7 +39,7 @@ function providerLoginUrl(provider) {
   const providerPath = provider === 'google' ? '' : `/${provider}`;
   const params = new URLSearchParams({
     app_id: appParams.appId,
-    from_url: authBridgeUrl(),
+    from_url: authReturnUrl(),
   });
   return `${backendOrigin()}/api/apps/auth${providerPath}/login?${params}`;
 }

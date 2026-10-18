@@ -11,6 +11,7 @@ import AppleIcon from "@/components/AppleIcon";
 import { useAuth } from "@/lib/AuthContext";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { isNativeAuthAvailable, loginWithProviderNative, AuthCancelledError } from "@/lib/nativeAuth";
+import { setOnboarded } from "@/lib/language";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -60,6 +61,24 @@ export default function Login() {
 
   const handleGoogle = () => handleProvider("google");
   const handleApple = () => handleProvider("apple");
+
+  const continueAsGuest = () => {
+    setOnboarded();
+    // المسارات المحمية أو استئناف الإنشاء تحتاج حساب — للزائر نروح للرئيسية أو الفورم
+    const path = (returnTo || "/").split("?")[0];
+    const needsAuth = ["/designs", "/my-styles", "/account", "/pricing"].some(
+      (p) => path === p || path.startsWith(p + "/"),
+    );
+    if (needsAuth) {
+      navigate("/", { replace: true });
+      return;
+    }
+    if ((returnTo || "").includes("create=1") || path === "/styling") {
+      navigate("/styling", { replace: true });
+      return;
+    }
+    navigate(path || "/", { replace: true });
+  };
 
   return (
     <AuthLayout
@@ -162,6 +181,15 @@ export default function Login() {
           )}
         </Button>
       </form>
+
+      <button
+        type="button"
+        onClick={continueAsGuest}
+        disabled={loading}
+        className="w-full mt-5 text-center text-sm text-muted-foreground py-2 active:opacity-70"
+      >
+        المتابعة كزائر
+      </button>
     </AuthLayout>
   );
 }

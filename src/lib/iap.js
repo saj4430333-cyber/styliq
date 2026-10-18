@@ -1,11 +1,13 @@
-// شراء داخل التطبيق عبر RevenueCat SDK (يعرض شاشة الشراء الرسمية من آبل).
-// RevenueCat يتحقق من الإيصال مع آبل ثم يُطلق revenuecat-webhook الذي يمنح الكريديت،
+// شراء داخل التطبيق عبر RevenueCat SDK (شاشة الشراء الرسمية من آبل أو جوجل).
+// RevenueCat يتحقق من الإيصال ثم يُطلق revenuecat-webhook الذي يمنح الكريديت،
 // لذلك لا نرسل أي إيصال من الواجهة.
 import { Capacitor } from '@capacitor/core';
 import { Purchases, PURCHASES_ERROR_CODE } from '@revenuecat/purchases-capacitor';
 
-// مفتاح RevenueCat العام لمنصة Apple — مخصص للعميل وليس سرّاً.
+// مفاتيح RevenueCat العامة (SDK) — ليست أسراراً. كل منصة لها مفتاح.
 const RC_APPLE_API_KEY = 'appl_ivIADgzaXYBgcGSHQNKLkwBjlvn';
+// من RevenueCat → Project settings → API keys → Google Play public SDK key (goog_...).
+const RC_GOOGLE_API_KEY = '';
 
 export const IAP_PRODUCT_ID = 'com.styliq.premium';
 
@@ -17,10 +19,17 @@ export class PurchaseCancelledError extends Error {
   }
 }
 
-// iOS فقط حالياً: المفتاح المتاح هو مفتاح Apple. لتفعيل أندرويد أضف مفتاح goog_
-// من لوحة RevenueCat واختره حسب المنصة هنا.
+function platformApiKey() {
+  const platform = Capacitor.getPlatform();
+  if (platform === 'ios') return RC_APPLE_API_KEY;
+  if (platform === 'android') return RC_GOOGLE_API_KEY;
+  return '';
+}
+
 export function isNativeIAPAvailable() {
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+  if (!Capacitor.isNativePlatform()) return false;
+  const key = platformApiKey();
+  return typeof key === 'string' && key.length > 8;
 }
 
 let configuredUserId = null;
@@ -36,7 +45,7 @@ export async function configureIAP(appUserID) {
   if (isConfigured) {
     await Purchases.logIn({ appUserID: id });
   } else {
-    await Purchases.configure({ apiKey: RC_APPLE_API_KEY, appUserID: id });
+    await Purchases.configure({ apiKey: platformApiKey(), appUserID: id });
   }
   configuredUserId = id;
   return true;
@@ -61,7 +70,7 @@ export async function purchaseLooks() {
   try {
     const result = await Purchases.purchasePackage({ aPackage: pkg });
     return {
-      platform: 'apple',
+      platform: Capacitor.getPlatform() === 'android' ? 'google' : 'apple',
       productIdentifier: result?.productIdentifier || IAP_PRODUCT_ID,
       customerInfo: result?.customerInfo || null,
     };
@@ -77,10 +86,10 @@ export async function purchaseLooks() {
 export function purchaseErrorText(e) {
   const code = e?.message || '';
   if (code === 'IAP_WEB_UNSUPPORTED') {
-    return 'الشراء متاح حالياً داخل تطبيق الآيفون فقط.';
+    return 'الشراء متاح داخل تطبيق الآيفون أو الأندرويد فقط، وليس على المتصفح.';
   }
   if (code === 'IAP_NO_OFFERING') {
-    return 'لم تُحمّل الباقات من App Store. تأكد أن المنتج معتمد في App Store Connect ومربوط بـ Offering في RevenueCat.';
+    return 'لم تُحمّل الباقات من المتجر. تأكد أن المنتج معتمد في App Store Connect أو Google Play ومربوط بـ Offering في RevenueCat.';
   }
   return String(e?.message || e);
 }

@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n-store';
 import { purchaseLooks, getLooksPackage, purchaseErrorText, PurchaseCancelledError } from '@/lib/iap';
 import { waitForCredits, CREDITS_PER_PACK } from '@/lib/revenuecat';
 import { isPaymentsEnabled } from '@/lib/features';
+import { useAuth } from '@/lib/AuthContext';
 
 const COUNT = CREDITS_PER_PACK;
 
@@ -15,6 +16,7 @@ export default function PayWall({ open, onClose, orderId, onPaid }) {
   const [err, setErr] = useState('');
   const [price, setPrice] = useState('$0.99');
   const { t, dir } = useI18n();
+  const { applyCredits, refreshUser } = useAuth();
   const desc = t.pw_desc.replace('{price}', price).replace('{count}', COUNT);
   const countLabel = t.pw_count.replace('{count}', COUNT);
   const payLabel = t.pw_pay.replace('{price}', price);
@@ -41,6 +43,8 @@ export default function PayWall({ open, onClose, orderId, onPaid }) {
         setErr(t.pw_err);
         return;
       }
+      applyCredits?.(credits);
+      await refreshUser?.();
       const res = await base44.functions.invoke('unlock-generation', { order_id: orderId });
       onPaid?.(res?.data);
       onClose?.();

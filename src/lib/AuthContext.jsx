@@ -109,7 +109,8 @@ export const AuthProvider = ({ children }) => {
   const checkUserAuth = async ({ showSpinner = true, throwOnError = false } = {}) => {
     try {
       if (showSpinner) setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
+      let currentUser = await base44.auth.me();
+      currentUser = await syncCreditsFromServer(currentUser);
       setUser(currentUser);
       setIsAuthenticated(true);
       setAuthError(null);
@@ -130,6 +131,43 @@ export const AuthProvider = ({ children }) => {
         });
       }
       if (throwOnError) throw error;
+    }
+  };
+
+  // تحديث رصيد الكريديت محليًا بعد الخصم/الشراء بدون انتظار كامل لإعادة التحميل
+  const applyCredits = (credits) => {
+    const next = Number(credits);
+    if (!Number.isFinite(next)) return;
+    setUser((prev) => (prev ? { ...prev, credits: next } : prev));
+  };
+
+  // auth.me() أحياناً يرجع credits قديم بعد تحديث السيرفر — نزامن من revenuecat-state.
+  const syncCreditsFromServer = async (baseUser) => {
+    if (!baseUser) return baseUser;
+    try {
+      const res = await base44.functions.invoke('revenuecat-state', {});
+      const st = res?.data || res || {};
+      const next = { ...baseUser };
+      const credits = Number(st.credits);
+      if (Number.isFinite(credits)) next.credits = credits;
+      if (st.is_pro != null) next.is_pro = !!st.is_pro;
+      return next;
+    } catch (e) {
+      console.error('syncCreditsFromServer failed:', e);
+      return baseUser;
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      let currentUser = await base44.auth.me();
+      currentUser = await syncCreditsFromServer(currentUser);
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      return currentUser;
+    } catch (e) {
+      console.error('refreshUser failed:', e);
+      return null;
     }
   };
 
@@ -169,7 +207,9 @@ export const AuthProvider = ({ children }) => {
       navigateToLogin,
       checkUserAuth,
       completeNativeLogin,
-      checkAppState
+      checkAppState,
+      applyCredits,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

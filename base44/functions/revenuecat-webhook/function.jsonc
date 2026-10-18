@@ -1,0 +1,4 @@
+{
+  "name": "revenuecat-webhook",
+  "entry": "entry.ts"
+}

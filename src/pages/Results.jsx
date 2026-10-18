@@ -9,8 +9,29 @@ import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
 import { useI18n } from '@/lib/i18n-store';
 import { styleDisplayName, occasionDisplayName, seasonDisplayName, genderDisplayName } from '@/lib/translate';
+import { ensureFiveOutfits, extractOutfitsPayload } from '@/lib/ensureFiveOutfits';
 
 const LOADING_STEPS_ICONS = [Wand2, ShoppingBag, Sparkles];
+
+function englishItems(outfit) {
+  const hasArabic = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
+  return (outfit.products || [])
+    .map((p) => {
+      const color = hasArabic(p.color) ? '' : (p.color || '');
+      const brand = hasArabic(p.brand) ? '' : (p.brand || '');
+      const name = hasArabic(p.product_name) ? (p.category || p.role || 'garment') : (p.product_name || p.category || p.role || 'garment');
+      return [color, brand, name].filter(Boolean).join(' ');
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
+function buildClientImagePrompt(outfit, order) {
+  const isMale = order?.gender === 'ذكر';
+  const genderWord = isMale ? 'male' : 'female';
+  const items = englishItems(outfit) || 'a coordinated fashion outfit';
+  return `Full-body editorial fashion lookbook photograph of a ${genderWord} fashion model wearing: ${items}. Vogue magazine aesthetic, warm ivory studio backdrop, full outfit visible head-to-toe including shoes. Single person only. No text, no watermark, ultra-photorealistic.`;
+}
 
 export default function Results() {
   const navigate = useNavigate();
@@ -29,6 +50,37 @@ export default function Results() {
   const BackIcon = dir === 'rtl' ? ArrowRight : ArrowLeft;
   const actionRef = useRef(null);
 
+  const withTimeout = (p, ms) =>
+    Promise.race([p, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+
+  const enrichMissingImages = async (outfits, order) => {
+    const next = outfits.map((o) => ({ ...o }));
+    await Promise.all(
+      next.map(async (outfit, i) => {
+        if (outfit.image_url) return;
+        try {
+          const res = await withTimeout(
+            base44.integrations.Core.GenerateImage({ prompt: buildClientImagePrompt(outfit, order) }),
+            70000,
+          );
+          const url = res?.url;
+          if (url) next[i] = { ...next[i], image_url: url };
+        } catch {
+          /* keep without image */
+        }
+      }),
+    );
+    return next;
+  };
+
+  const persistOutfits = async (orderId, outfits) => {
+    try {
+      await base44.entities.StylingOrder.update(orderId, { outfits });
+    } catch {
+      /* ignore */
+    }
+  };
+
   const runGenerate = () => {
     const orderId = searchParams.get('order_id');
     const sessionId = searchParams.get('session_id');
@@ -37,15 +89,63 @@ export default function Results() {
     setStepIdx(0);
     (async () => {
       try {
-        const res = await base44.functions.invoke('generate-outfits', { order_id: orderId, session_id: sessionId, lang });
-        const data = res.data || {};
-        const outfits = data.outfits || [];
-        if (!outfits.length) {
-          setState({ loading: false, outfits: [], order: data.order, error: t.res_err_d, code: 'generation_failed' });
-          return;
+        const res = await base44.functions.invoke('generate-outfits', {
+          order_id: orderId,
+          session_id: sessionId,
+          lang,
+          force_regenerate: true,
+        });
+
+        let { body: data, outfits, build, order: orderSummary } = extractOutfitsPayload(res);
+        console.log('[StyliQ] generate-outfits raw', {
+          count: outfits.length,
+          build,
+          target: data?.target,
+          keys: data && typeof data === 'object' ? Object.keys(data) : typeof data,
+        });
+
+        // لو السيرفر رجّع أقل من ٥ — كمّل محليًا عشان الشاشة متقفش
+        if (outfits.length < 5) {
+          try {
+            const saved = await base44.entities.StylingOrder.get(orderId);
+            if (Array.isArray(saved?.outfits) && saved.outfits.length > outfits.length) {
+              outfits = saved.outfits;
+              orderSummary = orderSummary || {
+                gender: saved.gender,
+                season: saved.season,
+                style: saved.style,
+                occasion: saved.occasion,
+                height: saved.height,
+                weight: saved.weight,
+                skin_tone: saved.skin_tone,
+              };
+            }
+          } catch {
+            /* ignore */
+          }
         }
-        base44.analytics.track({ eventName: 'outfits_generated', properties: { order_id: orderId } });
-        setState({ loading: false, outfits, order: data.order, error: '', code: '' });
+
+        outfits = ensureFiveOutfits(outfits, orderSummary || data?.order || {});
+        await persistOutfits(orderId, outfits);
+
+        setState({
+          loading: false,
+          outfits,
+          order: orderSummary || data?.order || null,
+          error: '',
+          code: '',
+        });
+        base44.analytics.track({
+          eventName: 'outfits_generated',
+          properties: { order_id: orderId, count: outfits.length, build },
+        });
+
+        const missing = outfits.some((o) => !o?.image_url);
+        if (missing) {
+          const enriched = await enrichMissingImages(outfits, orderSummary || data?.order || {});
+          await persistOutfits(orderId, enriched);
+          setState((p) => ({ ...p, outfits: enriched }));
+        }
       } catch (e) {
         const status = e?.response?.status || e?.status;
         const code = e?.response?.data?.code || (status === 402 ? 'payment_required' : 'generation_failed');
@@ -169,7 +269,13 @@ export default function Results() {
               <Sparkles className="w-3.5 h-3.5" />
               {t.res_badge}
             </span>
-            <h1 className="font-display text-3xl font-bold mb-1.5">{t.res_title}</h1>
+            <h1 className="font-display text-3xl font-bold mb-1.5">
+              {state.outfits.length === 5
+                ? t.res_title
+                : dir === 'rtl'
+                  ? `${state.outfits.length} إطلالات صُمّمت لك`
+                  : `${state.outfits.length} looks designed for you`}
+            </h1>
             <p className="text-muted-foreground text-sm">
               {styleDisplayName(order.style, lang)} · {occasionDisplayName(order.occasion, lang)} · {seasonDisplayName(order.season, lang)}
             </p>

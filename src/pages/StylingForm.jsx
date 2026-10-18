@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ArrowRight, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,9 @@ import { STYLES, HIJABI_STYLE } from '@/lib/styles';
 import { useI18n } from '@/lib/i18n-store';
 import { styleDisplayName, skinToneDisplayName } from '@/lib/translate';
 import CreditPurchase from '@/components/CreditPurchase';
+import { useAuth } from '@/lib/AuthContext';
+import { savePendingForm, getPendingForm, clearPendingForm } from '@/lib/pendingForm';
+import { sanitizeDigits } from '@/lib/digits';
 
 const seasons = ['ربيع', 'صيف', 'خريف', 'شتاء'];
 
@@ -41,6 +44,8 @@ function Pill({ label, selected, onClick }) {
 export default function StylingForm() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated, authChecked, applyCredits, refreshUser } = useAuth();
   const { t, lang } = useI18n();
   const STEPS = [t.sf_step1, t.sf_step2, t.sf_step3, t.sf_step4];
   const [form, setForm] = useState({ height: '', weight: '', skin_tone: '', gender: '', season: '', style: '', occasion: '' });
@@ -49,6 +54,7 @@ export default function StylingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const resumeTried = useRef(false);
 
   useEffect(() => {
     const prefill = location.state?.prefill;
@@ -145,6 +151,13 @@ export default function StylingForm() {
     if (!form.occasion) errs.occasion = t.sf_e_occ;
     if (Object.keys(errs).length) { setErrors(errs); setStep(0); return; }
 
+    // زائر: احفظ البيانات واطلب الحساب قبل إنشاء الطلب
+    if (!isAuthenticated) {
+      savePendingForm(form);
+      navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
+      return;
+    }
+
     setSubmitting(true);
     setCheckoutError('');
 
@@ -162,29 +175,80 @@ export default function StylingForm() {
     runCreateOrder();
   };
 
-  const runCreateOrder = async () => {
+  // بعد تسجيل الدخول: أكمل إنشاء التصميم من البيانات المحفوظة
+  useEffect(() => {
+    if (!authChecked || !isAuthenticated || resumeTried.current) return;
+    if (searchParams.get('create') !== '1') return;
+    resumeTried.current = true;
+    const pending = getPendingForm();
+    if (pending) {
+      const nextForm = {
+        height: pending.height != null ? String(pending.height) : '',
+        weight: pending.weight != null ? String(pending.weight) : '',
+        skin_tone: pending.skin_tone || '',
+        gender: pending.gender || '',
+        season: pending.season || '',
+        style: pending.style || '',
+        occasion: pending.occasion || '',
+      };
+      setForm(nextForm);
+      setStep(STEPS.length - 1);
+      clearPendingForm();
+      setSearchParams({}, { replace: true });
+      setSubmitting(true);
+      setTimeout(() => {
+        runCreateOrderWithForm(nextForm);
+      }, 50);
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  }, [authChecked, isAuthenticated, searchParams]);
+
+  const runCreateOrderWithForm = async (formData) => {
     setSubmitting(true);
     setCheckoutError('');
     try {
-      const res = await base44.functions.invoke('create-order', { form });
-      const orderId = res.data?.order_id;
-      if (!orderId) throw new Error(res.data?.error || 'تعذّر إنشاء الطلب');
+      const payload = {
+        ...formData,
+        height: Number(formData.height),
+        weight: Number(formData.weight),
+        skin_tone: formData.skin_tone || null,
+      };
+
+      const res = await base44.functions.invoke('create-order', { form: payload });
+      const orderId = res.data?.order_id ?? res?.order_id;
+      if (!orderId) throw new Error(res.data?.error || t.sf_e_create);
+
+      const afterCredits = res.data?.credits ?? res?.credits;
+      // طبّق رصيد create-order فوراً، ثم زامن من السيرفر، ثم أعد تأكيد الرقم
+      // حتى لا يمسح auth.me() القديم القيمة الصحيحة.
+      if (afterCredits != null) applyCredits?.(afterCredits);
+      await refreshUser?.();
+      if (afterCredits != null) applyCredits?.(afterCredits);
+
       navigate('/results?order_id=' + orderId);
     } catch (err) {
       const status = err?.response?.status || err?.status;
       const code = err?.response?.data?.code;
+      const errMsg = err?.response?.data?.error || err.message || t.sf_e_create;
       if (status === 401 || code === 'auth_required') {
-        base44.auth.redirectToLogin(window.location.href);
+        savePendingForm(formData);
+        navigate('/login?returnTo=' + encodeURIComponent('/styling?create=1'));
         return;
       }
       if (status === 402 || code === 'no_credits') {
+        console.log('[StyliQ IAP] no_credits → فتح Paywall');
         setSubmitting(false);
         setPaywallOpen(true);
         return;
       }
-      setCheckoutError(err?.response?.data?.error || err.message || t.sf_e_create);
+      setCheckoutError(errMsg);
       setSubmitting(false);
     }
+  };
+
+  const runCreateOrder = async () => {
+    await runCreateOrderWithForm(form);
   };
 
   const onPurchaseSuccess = () => {
@@ -217,14 +281,7 @@ export default function StylingForm() {
       </div>
 
       <div className="py-6">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25 }}
-          >
+        <div key={step}>
             {step === 0 && (
               <div className="space-y-7">
                 <div>
@@ -250,13 +307,39 @@ export default function StylingForm() {
                 </div>
                 <div ref={bodyRef} className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">{t.height}</Label>
-                    <Input type="number" inputMode="numeric" value={form.height} onChange={(e) => set('height', e.target.value)} placeholder="175" className="h-14 rounded-2xl text-base" />
+                    <Label htmlFor="sf-height" className="text-sm font-medium">{t.height}</Label>
+                    <Input
+                      id="sf-height"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      dir="ltr"
+                      value={form.height}
+                      onChange={(e) => set('height', sanitizeDigits(e.target.value))}
+                      placeholder="175"
+                      className="h-14 rounded-2xl text-base"
+                    />
                     {errors.height && <p className="text-destructive text-sm">{errors.height}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">{t.weight}</Label>
-                    <Input type="number" inputMode="numeric" value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="70" className="h-14 rounded-2xl text-base" />
+                    <Label htmlFor="sf-weight" className="text-sm font-medium">{t.weight}</Label>
+                    <Input
+                      id="sf-weight"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      dir="ltr"
+                      value={form.weight}
+                      onChange={(e) => set('weight', sanitizeDigits(e.target.value))}
+                      placeholder="70"
+                      className="h-14 rounded-2xl text-base"
+                    />
                     {errors.weight && <p className="text-destructive text-sm">{errors.weight}</p>}
                   </div>
                 </div>
@@ -340,8 +423,7 @@ export default function StylingForm() {
                 )}
               </div>
             )}
-          </motion.div>
-        </AnimatePresence>
+        </div>
       </div>
 
       {/* Footer action */}

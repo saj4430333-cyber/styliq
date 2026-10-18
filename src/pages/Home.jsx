@@ -14,15 +14,16 @@ import { styleDisplayName, occasionDisplayName } from '@/lib/translate';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { t, lang } = useI18n();
   const [orders, setOrders] = useState([]);
   const [saved, setSaved] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
+    if (!user?.id) { setLoading(false); return; }
     try {
+      await refreshUser?.();
       const [o, s] = await Promise.all([
         base44.entities.StylingOrder.list('-created_date', 10),
         base44.entities.SavedOutfit.list('-created_date', 10),
@@ -34,9 +35,22 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, refreshUser]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // عند الرجوع للتطبيق/التبويب — حدّث الرصيد المعروض
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshUser?.();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [refreshUser]);
 
   // الضغط مجدداً على تبويب الرئيسية يمرّر الصفحة للأعلى
   useEffect(() => {
@@ -82,13 +96,22 @@ export default function Home() {
           <h1 className="font-display text-2xl font-bold">{name}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/pricing')}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold active:scale-95"
-          >
-            <Sparkles className="w-4 h-4" />
-            كريديت: {user?.credits ?? 0}
-          </button>
+          {user ? (
+            <button
+              onClick={() => navigate('/pricing')}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold active:scale-95"
+            >
+              <Sparkles className="w-4 h-4" />
+              كريديت: {user?.credits ?? 0}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login?returnTo=' + encodeURIComponent('/'))}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-bold active:scale-95"
+            >
+              تسجيل الدخول
+            </button>
+          )}
           <Logo />
         </div>
       </div>

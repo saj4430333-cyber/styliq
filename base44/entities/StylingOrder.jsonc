@@ -50,17 +50,29 @@
         "paid",
         "failed"
       ],
-      "default": "pending"
+      "default": "pending",
+      "rls": {
+        "read": true,
+        "write": false
+      }
     },
     "credited": {
       "type": "boolean",
       "default": false,
-      "description": "\u0631\u0635\u064a\u062f \u0645\u0645\u0646\u0648\u062d \u0644\u0644\u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u062a\u064a\u0629 \u0641\u0634\u0644 \u0627\u0644\u062a\u0648\u0644\u064a\u062f \u064a\u0645\u0643\u0646\u0647 \u0645\u0646 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0645\u062c\u062f\u062f\u0627\u064b \u0628\u062f\u0648\u0646 \u062f\u0641\u0639"
+      "description": "\u0631\u0635\u064a\u062f \u0645\u0645\u0646\u0648\u062d \u0644\u0644\u0645\u0633\u062a\u062e\u062f\u0645 \u0646\u062a\u064a\u062c\u0629 \u0641\u0634\u0644 \u0627\u0644\u062a\u0648\u0644\u064a\u062f \u064a\u0645\u0643\u0646\u0647 \u0645\u0646 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0645\u062c\u062f\u062f\u0627\u064b \u0628\u062f\u0648\u0646 \u062f\u0641\u0639",
+      "rls": {
+        "read": true,
+        "write": false
+      }
     },
     "credit_spent": {
       "type": "boolean",
       "default": false,
-      "description": "Whether one credit was already deducted for this order at create/unlock time"
+      "description": "Whether one credit was already deducted for this order at create/unlock time",
+      "rls": {
+        "read": true,
+        "write": false
+      }
     },
     "iap_platform": {
       "type": "string",
@@ -68,11 +80,19 @@
         "apple",
         "google"
       ],
-      "description": "\u0645\u0646\u0635\u0629 \u0627\u0644\u0634\u0631\u0627\u0621 \u062f\u0627\u062e\u0644 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 (Apple StoreKit / Google Play Billing)"
+      "description": "Deprecated — purchases are verified only via RevenueCat webhook. Kept for legacy rows.",
+      "rls": {
+        "read": false,
+        "write": false
+      }
     },
     "iap_receipt": {
       "type": "string",
-      "description": "\u0625\u064a\u0635\u0627\u0644 \u0627\u0644\u0634\u0631\u0627\u0621 \u062f\u0627\u062e\u0644 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0645\u0646 Apple/Google"
+      "description": "Deprecated — never accept client-supplied receipts as payment proof.",
+      "rls": {
+        "read": false,
+        "write": false
+      }
     },
     "outfits": {
       "type": "array",
@@ -87,8 +107,7 @@
     "gender",
     "season",
     "style",
-    "occasion",
-    "payment_status"
+    "occasion"
   ],
   "rls": {
     "read": {

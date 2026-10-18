@@ -1,9 +1,23 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-// معرّف منتج الشراء داخل التطبيق (Apple StoreKit / Google Play Billing) — Consumable
+// فتح طلب معلّق بخصم كريديت واحد من رصيد السيرفر فقط.
+// الكريديت يُمنح حصرياً عبر revenuecat-webhook بعد تحقق RevenueCat من إيصال آبل/جوجل.
+// أي receipt / platform / transaction_id يرسله العميل يُرفض ولا يُعتبر إثبات دفع.
 export const PRODUCT_ID = 'com.styliq.premium';
 
 const MAX_SPEND_ATTEMPTS = 3;
+
+const CLIENT_PAYMENT_PROOF_KEYS = [
+  'receipt',
+  'iap_receipt',
+  'purchase_token',
+  'transaction_id',
+  'transactionId',
+  'platform',
+  'iap_platform',
+  'signed_transaction',
+  'signedTransactionInfo',
+];
 
 async function spendOneCredit(base44, userId) {
   for (let attempt = 0; attempt < MAX_SPEND_ATTEMPTS; attempt++) {
@@ -25,10 +39,23 @@ async function spendOneCredit(base44, userId) {
   return { ok: false, code: 'spend_conflict', credits: 0 };
 }
 
-export default async function(req) {
+export default async function (req) {
   try {
     const body = await req.json();
     const base44 = createClientFromRequest(req);
+
+    // رفض صريح لأي «إثبات شراء» من العميل — لا نثق بإيصالات غير متحققة.
+    const offeredProof = CLIENT_PAYMENT_PROOF_KEYS.filter((k) => body?.[k] != null && body[k] !== '');
+    if (offeredProof.length) {
+      console.warn('unlock-generation rejected client payment proof', { keys: offeredProof });
+      return Response.json(
+        {
+          error: 'إثبات الشراء من العميل غير مقبول. أكمل الشراء عبر التطبيق ثم انتظر إضافة الكريديت.',
+          code: 'receipt_not_accepted',
+        },
+        { status: 400 },
+      );
+    }
 
     if (!body.order_id) {
       return Response.json({ error: 'معرف الطلب مطلوب' }, { status: 400 });
@@ -37,7 +64,7 @@ export default async function(req) {
     let me;
     try {
       me = await base44.auth.me();
-    } catch (e) {
+    } catch {
       return Response.json({ error: 'Unauthorized', code: 'auth_required' }, { status: 401 });
     }
     if (!me) return Response.json({ error: 'Unauthorized', code: 'auth_required' }, { status: 401 });
@@ -58,7 +85,7 @@ export default async function(req) {
       });
     }
 
-    // رصيد مجاني من فشل توليد سابق: نفتح بدون خصم إضافي.
+    // رصيد مجاني من فشل توليد سابق: نفتح بدون خصم إضافي (يُعيَّن من السيرفر فقط).
     if (order.credited) {
       await base44.asServiceRole.entities.StylingOrder.update(order.id, {
         payment_status: 'paid',
@@ -67,7 +94,7 @@ export default async function(req) {
       return Response.json({ ok: true, credited: true, product_id: PRODUCT_ID });
     }
 
-    // لازم نخصم كريديت واحد هنا — وإلا يُفتح التوليد دون استهلاك الباقة.
+    // الخصم من رصيد السيرفر فقط — مصدر الكريديت هو RevenueCat webhook.
     const spent = await spendOneCredit(base44, me.id);
     if (!spent.ok) {
       return Response.json(
@@ -78,7 +105,6 @@ export default async function(req) {
 
     await base44.asServiceRole.entities.StylingOrder.update(order.id, {
       payment_status: 'paid',
-      iap_platform: 'apple',
       credit_spent: true,
     });
 

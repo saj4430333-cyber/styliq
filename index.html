@@ -12,6 +12,24 @@
     <script>
       (function(){try{var l=localStorage.getItem('styliq_lang')||'ar';document.documentElement.lang=l;document.documentElement.dir=l==='en'?'ltr':'rtl';}catch(e){}})();
     </script>
+    <script>
+      (function () {
+        try {
+          var SCHEME = 'com.base6a80314d63be247cee56fa4f.app';
+          var search = window.location.search || '';
+          var hash = window.location.hash || '';
+          var params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+          var token = params.get('access_token');
+          if (!token && hash.indexOf('?') >= 0) {
+            token = new URLSearchParams(hash.slice(hash.indexOf('?') + 1)).get('access_token');
+          }
+          if (!token) return;
+          if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) return;
+          var q = search && search.charAt(0) === '?' ? search : ('?access_token=' + encodeURIComponent(token));
+          window.location.replace(SCHEME + '://auth' + q);
+        } catch (e) {}
+      })();
+    </script>
     <meta property="og:title" content="StyliQ — مصمّمك الشخصي للأزياء" />
     <meta property="og:description" content="ثلاث تنسيقات مخصصة مولّدة بالذكاء الاصطناعي تناسب جسمك ومناسبتك." />
     <meta property="og:type" content="website" />

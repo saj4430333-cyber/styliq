@@ -6,12 +6,14 @@ import { useI18n } from '@/lib/i18n-store';
 import { purchaseLooks, getLooksPackage, purchaseErrorText, PurchaseCancelledError } from '@/lib/iap';
 import { waitForCredits, CREDITS_PER_PACK } from '@/lib/revenuecat';
 import { isPaymentsEnabled } from '@/lib/features';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function CreditPurchase({ open, onClose, onSuccess }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [price, setPrice] = useState('$0.99');
   const { t, dir } = useI18n();
+  const { applyCredits, refreshUser } = useAuth();
   const COUNT = CREDITS_PER_PACK;
   const desc = t.pw_desc.replace('{price}', price).replace('{count}', COUNT);
   const countLabel = t.pw_count.replace('{count}', COUNT);
@@ -36,6 +38,8 @@ export default function CreditPurchase({ open, onClose, onSuccess }) {
       // الكريديت يُمنح من revenuecat-webhook بعد تحقّق RevenueCat مع آبل.
       const credits = await waitForCredits();
       if (credits > 0) {
+        applyCredits?.(credits);
+        await refreshUser?.();
         onSuccess?.(credits);
         onClose?.();
       } else {

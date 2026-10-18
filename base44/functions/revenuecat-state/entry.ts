@@ -44,12 +44,25 @@ export default async function (req: Request): Promise<Response> {
   const entitlementActive = !!ent
     && (!ent.expires_date || new Date(ent.expires_date).getTime() > Date.now());
 
+  // الرصيد يُحدَّث عبر asServiceRole على كيان User — auth.me() قد يبقى قديماً.
+  let credits = Number(me.credits) || 0;
+  let isProFlag = !!me.is_pro;
+  try {
+    const fresh = await base44.asServiceRole.entities.User.get(userId);
+    if (fresh) {
+      credits = Number(fresh.credits) || 0;
+      isProFlag = !!fresh.is_pro;
+    }
+  } catch (e) {
+    console.error('revenuecat-state user get error:', String(e));
+  }
+
   // نرفع is_pro فقط هنا. الإلغاء/الانتهاء يتكفّل به revenuecat-webhook،
   // وإلا فإن المنتج الاستهلاكي (Consumable) — الذي لا يُنشئ Entitlement أصلاً —
   // كان يمسح is_pro الذي منحه الويبهوك للتوّ بعد الشراء.
-  const isPro = entitlementActive || !!me.is_pro;
+  const isPro = entitlementActive || isProFlag;
   try {
-    if (entitlementActive && !me.is_pro) {
+    if (entitlementActive && !isProFlag) {
       await base44.asServiceRole.entities.User.update(userId, { is_pro: true });
     }
   } catch (e) {
@@ -60,6 +73,6 @@ export default async function (req: Request): Promise<Response> {
     ok: true,
     entitlements,
     is_pro: isPro,
-    credits: Number(me.credits) || 0,
+    credits,
   });
 }
